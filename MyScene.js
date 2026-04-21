@@ -30,7 +30,7 @@ export class MyScene extends CGFscene {
     //Objects connected to MyInterface
     this.displayAxis = true;
     this.displaySphere = true
-    this.scaleFactor = 1;
+    this.scaleFactor = 200;
   }
   initLights() {
     this.lights[0].setPosition(15, 2, 5, 1);
