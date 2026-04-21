@@ -43,9 +43,9 @@ export class MyScene extends CGFscene {
     this.displaySphere = true;
     this.displayClouds = true;
     this.scaleFactor   = 25;
-    this.cloudSpeed = 0.004;
+    this.cloudSpeed = 0.001;
     this.cloudDensity  = 0.62;
-    this.cloudScale    = 12.4;
+    this.cloudScale    = 6.0;
     this._cloudTime    = 0.0;
     this._accumulatedTime = 0;
     this.setUpdatePeriod(16);
@@ -53,7 +53,7 @@ export class MyScene extends CGFscene {
 
   update(t) {
     this._accumulatedTime += t; 
-    this._cloudTime = (this._accumulatedTime / 1000000000000.0) * this.cloudSpeed;
+    this._cloudTime = (this._accumulatedTime / 10e11) * this.cloudSpeed;
   }
 
   initLights() {

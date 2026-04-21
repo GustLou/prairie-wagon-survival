@@ -27,9 +27,9 @@ export class MyInterface extends CGFinterface {
         // ── Cloud controls ─────────────────────────────────────────────────
         const cloudFolder = this.gui.addFolder('Clouds');
         cloudFolder.add(this.scene, 'displayClouds').name('Display Clouds');
-        cloudFolder.add(this.scene, 'cloudSpeed',   0.0, 0.2 ).name('Speed');
-        cloudFolder.add(this.scene, 'cloudDensity', 0.2, 0.9).name('Density');
-        cloudFolder.add(this.scene, 'cloudScale',   1.0, 100.0 ).name('Scale');
+        cloudFolder.add(this.scene, 'cloudSpeed',   0.0, 0.008 ).name('Speed');
+        cloudFolder.add(this.scene, 'cloudDensity', 0.0, 0.9).name('Density');
+        cloudFolder.add(this.scene, 'cloudScale',   1.0, 20.0 ).name('Scale');
         cloudFolder.open();
 
         return true;
