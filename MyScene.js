@@ -1,10 +1,7 @@
-import { CGFscene, CGFcamera, CGFaxis } from "../lib/CGF.js";
+import { CGFscene, CGFcamera, CGFaxis, CGFshader, CGFappearance } from "../lib/CGF.js";
 import { MySphere } from "./Sphere.js";
+import { MyCloudSphere } from "./MyCloudSphere.js";
 
-/**
- * MyScene
- * @constructor
- */
 export class MyScene extends CGFscene {
   constructor() {
     super();
@@ -15,85 +12,115 @@ export class MyScene extends CGFscene {
     this.initCameras();
     this.initLights();
 
-    //Background color
     this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
-
     this.gl.clearDepth(100.0);
     this.gl.enable(this.gl.DEPTH_TEST);
     this.gl.enable(this.gl.CULL_FACE);
     this.gl.depthFunc(this.gl.LEQUAL);
 
-    //Initialize scene objects
     this.axis = new CGFaxis(this);
     this.sphere = new MySphere(this);
+    this.cloudSphere = new MyCloudSphere(this, 0.97, 40, 60);
 
-    //Objects connected to MyInterface
-    this.displayAxis = true;
-    this.displaySphere = true
-    this.scaleFactor = 25;
+    this.cloudAppearance = new CGFappearance(this);
+    this.cloudAppearance.setAmbient(1.0, 1.0, 1.0, 1.0);
+    this.cloudAppearance.setDiffuse(1.0, 1.0, 1.0, 1.0);
+    this.cloudAppearance.setSpecular(0.0, 0.0, 0.0, 1.0);
+    this.cloudAppearance.setShininess(1.0);
+
+    this.cloudShader = new CGFshader(
+      this.gl,
+      "shaders/cloud.vert",
+      "shaders/cloud.frag"
+    );
+    this.cloudShader.setUniformsValues({
+      uTime:    0.000002,
+      uDensity: 0.62,
+      uScale:   12.4,
+    });
+
+    this.displayAxis   = true;
+    this.displaySphere = true;
+    this.displayClouds = true;
+    this.scaleFactor   = 25;
+    this.cloudSpeed = 0.004;
+    this.cloudDensity  = 0.62;
+    this.cloudScale    = 12.4;
+    this._cloudTime    = 0.0;
+    this._accumulatedTime = 0;
+    this.setUpdatePeriod(16);
   }
+
+  update(t) {
+    this._accumulatedTime += t; 
+    this._cloudTime = (this._accumulatedTime / 1000000000000.0) * this.cloudSpeed;
+  }
+
   initLights() {
     this.lights[0].setPosition(15, 2, 5, 1);
     this.lights[0].setDiffuse(1.0, 1.0, 1.0, 1.0);
     this.lights[0].enable();
     this.lights[0].update();
   }
+
   initCameras() {
     this.camera = new CGFcamera(
-      0.4,
-      0.1,
-      500,
+      0.4, 0.1, 500,
       vec3.fromValues(15, 15, 15),
       vec3.fromValues(0, 0, 0)
     );
   }
+
   setDefaultAppearance() {
-    this.setAmbient(0.2, 0.4, 0.8, 1.0);
-    this.setDiffuse(0.2, 0.4, 0.8, 1.0);
-    this.setSpecular(0.2, 0.4, 0.8, 1.0);
-    this.setShininess(10.0);
+    this.setAmbient(0.0, 0.0, 0.0, 1.0);
+    this.setDiffuse(0.0, 0.0, 0.0, 1.0);
+    this.setSpecular(0.0, 0.0, 0.0, 1.0);
+    this.setEmission(0.4, 0.65, 1.0, 1.0);
   }
+
   display() {
-    // ---- BEGIN Background, camera and axis setup
-    // Clear image and depth buffer everytime we update the scene
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
-    // Initialize Model-View matrix as identity (no transformation
     this.updateProjectionMatrix();
     this.loadIdentity();
-    // Apply transformations corresponding to the camera position relative to the origin
     this.applyViewMatrix();
 
-    // Draw axis
     if (this.displayAxis) this.axis.display();
 
     this.setDefaultAppearance();
 
     var sca = [
-      this.scaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      this.scaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      this.scaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
+      this.scaleFactor, 0.0, 0.0, 0.0,
+      0.0, this.scaleFactor, 0.0, 0.0,
+      0.0, 0.0, this.scaleFactor, 0.0,
+      0.0, 0.0, 0.0, 1.0,
     ];
-
     this.multMatrix(sca);
 
-    // ---- BEGIN Primitive drawing section
+    if (this.displaySphere) {
+      this.setActiveShader(this.defaultShader);
 
-    if (this.displaySphere) this.sphere.display();
+      this.sphere.display();
+    }
+    if (this.displayClouds) {
+      this.gl.enable(this.gl.BLEND);
+      this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+      this.gl.depthMask(false);
 
-    // ---- END Primitive drawing section
+      this.setActiveShader(this.cloudShader);
+
+      this.cloudAppearance.apply();
+
+      this.cloudShader.setUniformsValues({  
+        uTime:    this._cloudTime,
+        uDensity: this.cloudDensity,
+        uScale:   this.cloudScale,
+      });
+      this.cloudSphere.display();
+      
+      this.setDefaultShader();
+      this.gl.depthMask(true);
+      this.gl.disable(this.gl.BLEND);
+    }
   }
 }
