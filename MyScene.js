@@ -1,5 +1,11 @@
-import { CGFscene, CGFcamera, CGFaxis, CGFappearance, CGFtexture } from "../lib/CGF.js";
-import { MyQuad } from "./MyQuad.js";
+import {
+  CGFscene,
+  CGFcamera,
+  CGFaxis,
+  CGFappearance,
+  CGFtexture,
+  CGFshader,
+} from "../lib/CGF.js";
 import { MySphere } from "./Sphere.js";
 
 /**
@@ -14,11 +20,9 @@ export class MyScene extends CGFscene {
     super.init(application);
 
     this.sunPosition = { x: 12, y: 8, z: -6 };
-    this.sunScale = 8.0;
-
+    this.sunScale = 3.0;
 
     this.initCameras();
-
 
     //Background color
     this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -29,12 +33,13 @@ export class MyScene extends CGFscene {
     //Initialize scene objects
     this.axis = new CGFaxis(this);
     this.sphere = new MySphere(this);
-    this.sunQuad = new MyQuad(this);
+    this.sunSphere = new MySphere(this, false);
 
     //Initialize Materials and lights
     this.initSunMaterial();
     this.initSkyboxMaterial();
     this.initLights();
+    this.initShader();
 
     //Objects connected to MyInterface
     this.displayAxis = true;
@@ -42,14 +47,42 @@ export class MyScene extends CGFscene {
     this.scaleFactor = 25;
   }
 
+  initShader() {
+    this.sunShader = new CGFshader(
+      this.gl,
+      "shaders/sun.vert",
+      "shaders/sun.frag",
+    );
+    this.sunShader.setUniformsValues({ uSampler: 0 });
+  }
+
+  updateSunShaderUniforms() {
+    const camPos = [
+      this.camera.position[0],
+      this.camera.position[1],
+      this.camera.position[2],
+    ];
+
+    // forward vector from camera position -> camera target
+    const camDir = vec3.create();
+    vec3.sub(camDir, this.camera.target, this.camera.position);
+    vec3.normalize(camDir, camDir);
+
+    this.sunShader.setUniformsValues({
+      uCameraPosition: camPos,
+      uCameraDirection: [camDir[0], camDir[1], camDir[2]],
+      uSunCenter: [this.sunPosition.x, this.sunPosition.y, this.sunPosition.z],
+    });
+  }
+
   initSunMaterial() {
     this.sunMaterial = new CGFappearance(this);
-    this.sunMaterial.setEmission(1, 1, 1, 1); 
+    this.sunMaterial.setEmission(1, 1, 1, 1);
     this.sunMaterial.setAmbient(1, 1, 1, 1);
     this.sunMaterial.setDiffuse(0, 0, 0, 1);
     this.sunMaterial.setSpecular(0, 0, 0, 1);
 
-    this.sunTexture = new CGFtexture(this, "textures/sun_texture.png");
+    this.sunTexture = new CGFtexture(this, "textures/sun_texture_2.jpg");
     this.sunMaterial.setTexture(this.sunTexture);
   }
 
@@ -138,15 +171,15 @@ export class MyScene extends CGFscene {
     if (this.displaySphere) this.sphere.display();
     this.popMatrix();
 
-    // Draw sun quad with alpha blending (depthMask off so transparent pixels don't occlude sphere)
-    this.gl.depthMask(false);
     this.pushMatrix();
     this.translate(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z);
     this.scale(this.sunScale, this.sunScale, this.sunScale);
     this.sunMaterial.apply();
-    this.sunQuad.display();
+    this.setActiveShader(this.sunShader); // use sun glow shader
+    this.updateSunShaderUniforms();
+    this.sunSphere.display();
+    this.setActiveShader(this.defaultShader);
     this.popMatrix();
-    this.gl.depthMask(true);
 
     // ---- END Primitive drawing section
   }

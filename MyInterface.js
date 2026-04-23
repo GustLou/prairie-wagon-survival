@@ -23,7 +23,8 @@ export class MyInterface extends CGFinterface {
 
 
         //Slider element in GUI
-        this.gui.add(this.scene, 'scaleFactor', 0.1,200).name('Scale Factor');
+        this.gui.add(this.scene, 'scaleFactor', 0.1, 200).name('Scale Factor');
+        this.gui.add(this.scene, 'sunScale', 0.1, 20).name('Sun Size');
         // x position of sun
         // this.gui.add(this.scene,'sunPositionX',1,500).name('Sun X Position');
         // this.gui.add(this.scene,'sunPositionY',1,500).name('Sun Y Position');
