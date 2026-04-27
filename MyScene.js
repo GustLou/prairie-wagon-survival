@@ -6,7 +6,7 @@ import {
   CGFtexture,
   CGFshader,
 } from "../lib/CGF.js";
-import { MySphere } from "./Sphere.js";
+import { SkyBox } from "./SkyBox.js";
 
 /**
  * MyScene
@@ -32,14 +32,17 @@ export class MyScene extends CGFscene {
 
     //Initialize scene objects
     this.axis = new CGFaxis(this);
-    this.sphere = new MySphere(this);
-    this.sunSphere = new MySphere(this, false);
+    this.sphere = new SkyBox(this);
+    this.sunSphere = new SkyBox(this, false);
 
     //Initialize Materials and lights
     this.initSunMaterial();
     this.initSkyboxMaterial();
     this.initLights();
     this.initShader();
+
+    // Shaders
+    this.skyShader = new CGFshader(this.gl, "shaders/sky.vert", "shaders/sky.frag");
 
     //Objects connected to MyInterface
     this.displayAxis = true;
@@ -131,6 +134,21 @@ export class MyScene extends CGFscene {
     this.setSpecular(0.2, 0.4, 0.8, 1.0);
     this.setShininess(10.0);
   }
+
+  // updateSunPosition() {
+  //   // Convert degrees to radians
+  //   let az = this.sunAzimuth * Math.PI / 180;
+  //   let el = this.sunElevation * Math.PI / 180;
+
+  //   // Calculate X, Y, Z based on spherical coordinates
+  //   let sunX = Math.cos(el) * Math.sin(az);
+  //   let sunY = Math.sin(el);
+  //   let sunZ = Math.cos(el) * Math.cos(az);
+
+  //   // Send the values to the fragment shader
+  //   this.skyShader.setUniformsValues({ uSunPosition: [sunX, sunY, sunZ] });
+  // }
+
   display() {
     // ---- BEGIN Background, camera and axis setup
     // Clear image and depth buffer everytime we update the scene
@@ -168,7 +186,16 @@ export class MyScene extends CGFscene {
     this.pushMatrix();
     this.multMatrix(sca);
     this.skyboxMaterial.apply();
-    if (this.displaySphere) this.sphere.display();
+    if (this.displaySphere) {
+      // 1. Update sun position based on interface
+      // this.updateSunPosition();
+      
+      // 2. Activate custom shader
+      this.setActiveShader(this.skyShader);
+      
+      // 3. Draw sphere
+      this.sphere.display();
+    }
     this.popMatrix();
 
     this.pushMatrix();
@@ -180,6 +207,9 @@ export class MyScene extends CGFscene {
     this.sunSphere.display();
     this.setActiveShader(this.defaultShader);
     this.popMatrix();
+      
+      // 4. Restore default shader for any other objects you draw later
+      this.setActiveShader(this.defaultShader); 
 
     // ---- END Primitive drawing section
   }

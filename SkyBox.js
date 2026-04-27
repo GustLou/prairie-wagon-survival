@@ -4,7 +4,7 @@ import {CGFobject} from '../lib/CGF.js';
  * @constructor
  * @param scene - Reference to MyScene object
  */
-export class MySphere extends CGFobject {
+export class SkyBox extends CGFobject {
 	constructor(scene, inverted = true) {
 		super(scene);
 		this.inverted = inverted;
@@ -43,6 +43,7 @@ export class MySphere extends CGFobject {
 		this.primitiveType = this.scene.gl.TRIANGLES;
 
 		this.initGLBuffers();
+		// this.enableNormalViz();
 	}
 }
 
