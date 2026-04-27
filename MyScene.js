@@ -1,4 +1,11 @@
-import { CGFscene, CGFcamera, CGFaxis } from "../lib/CGF.js";
+import {
+  CGFscene,
+  CGFcamera,
+  CGFaxis,
+  CGFappearance,
+  CGFtexture,
+  CGFshader,
+} from "../lib/CGF.js";
 import { MySphere } from "./Sphere.js";
 
 /**
@@ -11,31 +18,102 @@ export class MyScene extends CGFscene {
   }
   init(application) {
     super.init(application);
-    
+
+    this.sunPosition = { x: 12, y: 8, z: -6 };
+    this.sunScale = 3.0;
+
     this.initCameras();
-    this.initLights();
 
     //Background color
     this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
-
-    this.gl.clearDepth(100.0);
-    this.gl.enable(this.gl.DEPTH_TEST);
-    this.gl.enable(this.gl.CULL_FACE);
-    this.gl.depthFunc(this.gl.LEQUAL);
+    this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+    this.gl.enable(this.gl.BLEND);
+    this.enableTextures(true);
 
     //Initialize scene objects
     this.axis = new CGFaxis(this);
     this.sphere = new MySphere(this);
+    this.sunSphere = new MySphere(this, false);
+
+    //Initialize Materials and lights
+    this.initSunMaterial();
+    this.initSkyboxMaterial();
+    this.initLights();
+    this.initShader();
 
     //Objects connected to MyInterface
     this.displayAxis = true;
-    this.displaySphere = true
+    this.displaySphere = true;
     this.scaleFactor = 25;
   }
+
+  initShader() {
+    this.sunShader = new CGFshader(
+      this.gl,
+      "shaders/sun.vert",
+      "shaders/sun.frag",
+    );
+    this.sunShader.setUniformsValues({ uSampler: 0 });
+  }
+
+  updateSunShaderUniforms() {
+    const camPos = [
+      this.camera.position[0],
+      this.camera.position[1],
+      this.camera.position[2],
+    ];
+
+    // forward vector from camera position -> camera target
+    const camDir = vec3.create();
+    vec3.sub(camDir, this.camera.target, this.camera.position);
+    vec3.normalize(camDir, camDir);
+
+    this.sunShader.setUniformsValues({
+      uCameraPosition: camPos,
+      uCameraDirection: [camDir[0], camDir[1], camDir[2]],
+      uSunCenter: [this.sunPosition.x, this.sunPosition.y, this.sunPosition.z],
+    });
+  }
+
+  initSunMaterial() {
+    this.sunMaterial = new CGFappearance(this);
+    this.sunMaterial.setEmission(1, 1, 1, 1);
+    this.sunMaterial.setAmbient(1, 1, 1, 1);
+    this.sunMaterial.setDiffuse(0, 0, 0, 1);
+    this.sunMaterial.setSpecular(0, 0, 0, 1);
+
+    this.sunTexture = new CGFtexture(this, "textures/sun_texture_2.jpg");
+    this.sunMaterial.setTexture(this.sunTexture);
+  }
+
+  initSkyboxMaterial() {
+    this.skyboxMaterial = new CGFappearance(this);
+    this.skyboxMaterial.setAmbient(0.1, 0.2, 0.4, 1.0); // Dark blue "base" color
+    this.skyboxMaterial.setDiffuse(0.1, 0.2, 0.4, 1.0);
+    this.skyboxMaterial.setSpecular(0, 0, 0, 1);
+  }
+
   initLights() {
-    this.lights[0].setPosition(15, 2, 5, 1);
-    this.lights[0].setDiffuse(1.0, 1.0, 1.0, 1.0);
+    this.lights[0].setPosition(
+      this.sunPosition.x,
+      this.sunPosition.y,
+      this.sunPosition.z,
+      0.0, // 0 because of directional
+    );
+    this.lights[0].setDiffuse(1.0, 0.95, 0.7, 1.0);
+    this.lights[0].setSpecular(1.0, 0.95, 0.7, 1.0);
     this.lights[0].enable();
+    this.lights[0].update();
+  }
+
+  syncSunLight() {
+    // sync light[0] with current sunPosition
+    this.lights[0].setPosition(
+      this.sunPosition.x,
+      this.sunPosition.y,
+      this.sunPosition.z,
+      0.0,
+    );
     this.lights[0].update();
   }
   initCameras() {
@@ -43,8 +121,8 @@ export class MyScene extends CGFscene {
       0.4,
       0.1,
       500,
-      vec3.fromValues(15, 15, 15),
-      vec3.fromValues(0, 0, 0)
+      vec3.fromValues(3, 3, 3),
+      vec3.fromValues(0, 0, 0),
     );
   }
   setDefaultAppearance() {
@@ -67,8 +145,6 @@ export class MyScene extends CGFscene {
     // Draw axis
     if (this.displayAxis) this.axis.display();
 
-    this.setDefaultAppearance();
-
     var sca = [
       this.scaleFactor,
       0.0,
@@ -88,11 +164,22 @@ export class MyScene extends CGFscene {
       1.0,
     ];
 
+    // Draw sphere first so transparent sun can blend against it
+    this.pushMatrix();
     this.multMatrix(sca);
-
-    // ---- BEGIN Primitive drawing section
-
+    this.skyboxMaterial.apply();
     if (this.displaySphere) this.sphere.display();
+    this.popMatrix();
+
+    this.pushMatrix();
+    this.translate(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z);
+    this.scale(this.sunScale, this.sunScale, this.sunScale);
+    this.sunMaterial.apply();
+    this.setActiveShader(this.sunShader); // use sun glow shader
+    this.updateSunShaderUniforms();
+    this.sunSphere.display();
+    this.setActiveShader(this.defaultShader);
+    this.popMatrix();
 
     // ---- END Primitive drawing section
   }

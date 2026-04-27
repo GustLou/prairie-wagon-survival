@@ -21,8 +21,14 @@ export class MyInterface extends CGFinterface {
         this.gui.add(this.scene, 'displayAxis').name('Display Axis');
         this.gui.add(this.scene, 'displaySphere').name('Display Sphere');
 
+
         //Slider element in GUI
-        this.gui.add(this.scene, 'scaleFactor', 0.1,200).name('Scale Factor');
+        this.gui.add(this.scene, 'scaleFactor', 0.1, 200).name('Scale Factor');
+        this.gui.add(this.scene, 'sunScale', 0.1, 20).name('Sun Size');
+        // x position of sun
+        // this.gui.add(this.scene,'sunPositionX',1,500).name('Sun X Position');
+        // this.gui.add(this.scene,'sunPositionY',1,500).name('Sun Y Position');
+        // this.gui.add(this.scene,'sunPositionZ',1,500).name('Sun Z Position');
 
         return true;
     }
