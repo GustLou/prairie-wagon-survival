@@ -7,11 +7,8 @@ import {
   CGFshader,
 } from "../lib/CGF.js";
 import { SkyBox } from "./SkyBox.js";
+import { MyCloudSphere } from "./MyCloudSphere.js";
 
-/**
- * MyScene
- * @constructor
- */
 export class MyScene extends CGFscene {
   constructor() {
     super();
@@ -20,17 +17,15 @@ export class MyScene extends CGFscene {
     super.init(application);
 
     this.sunPosition = { x: 12, y: 8, z: -6 };
-    this.sunScale = 3.0;
+    this.sunScale = 0.3;
 
     this.initCameras();
 
-    //Background color
     this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
     this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
     this.gl.enable(this.gl.BLEND);
     this.enableTextures(true);
 
-    //Initialize scene objects
     this.axis = new CGFaxis(this);
     this.sphere = new SkyBox(this);
     this.sunSphere = new SkyBox(this, false);
@@ -43,12 +38,42 @@ export class MyScene extends CGFscene {
 
     // Shaders
     this.skyShader = new CGFshader(this.gl, "shaders/sky.vert", "shaders/sky.frag");
+    this.cloudSphere = new MyCloudSphere(this, 0.97, 40, 60);
 
-    //Objects connected to MyInterface
-    this.displayAxis = true;
-    this.displaySphere = true;
-    this.scaleFactor = 25;
+    this.cloudAppearance = new CGFappearance(this);
+    this.cloudAppearance.setAmbient(1.0, 1.0, 1.0, 1.0);
+    this.cloudAppearance.setDiffuse(1.0, 1.0, 1.0, 1.0);
+    this.cloudAppearance.setSpecular(0.0, 0.0, 0.0, 1.0);
+    this.cloudAppearance.setShininess(1.0);
+
+    this.cloudShader = new CGFshader(
+      this.gl,
+      "shaders/cloud.vert",
+      "shaders/cloud.frag"
+    );
+    this.cloudShader.setUniformsValues({
+      uTime:    0.000002,
+      uDensity: 0.62,
+      uScale:   12.4,
+    });
+
+    this.displayAxis   = true;
+    this.displaySphere = true;;
+    this.displayClouds = true;
+    this.scaleFactor   = 25;
+    this.cloudSpeed = 0.001;
+    this.cloudDensity  = 0.62;
+    this.cloudScale    = 6.0;
+    this._cloudTime    = 0.0;
+    this._accumulatedTime = 0;
+    this.setUpdatePeriod(16);
   }
+
+  update(t) {
+    this._accumulatedTime += t; 
+    this._cloudTime = (this._accumulatedTime / 10e11) * this.cloudSpeed;
+  }
+
 
   initShader() {
     this.sunShader = new CGFshader(
@@ -119,6 +144,7 @@ export class MyScene extends CGFscene {
     );
     this.lights[0].update();
   }
+
   initCameras() {
     this.camera = new CGFcamera(
       0.4,
@@ -128,11 +154,12 @@ export class MyScene extends CGFscene {
       vec3.fromValues(0, 0, 0),
     );
   }
+
   setDefaultAppearance() {
-    this.setAmbient(0.2, 0.4, 0.8, 1.0);
-    this.setDiffuse(0.2, 0.4, 0.8, 1.0);
-    this.setSpecular(0.2, 0.4, 0.8, 1.0);
-    this.setShininess(10.0);
+    this.setAmbient(0.0, 0.0, 0.0, 1.0);
+    this.setDiffuse(0.0, 0.0, 0.0, 1.0);
+    this.setSpecular(0.0, 0.0, 0.0, 1.0);
+    this.setEmission(0.4, 0.65, 1.0, 1.0);
   }
 
   // updateSunPosition() {
@@ -149,52 +176,56 @@ export class MyScene extends CGFscene {
   //   this.skyShader.setUniformsValues({ uSunPosition: [sunX, sunY, sunZ] });
   // }
 
+
   display() {
-    // ---- BEGIN Background, camera and axis setup
-    // Clear image and depth buffer everytime we update the scene
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
-    // Initialize Model-View matrix as identity (no transformation
     this.updateProjectionMatrix();
     this.loadIdentity();
-    // Apply transformations corresponding to the camera position relative to the origin
     this.applyViewMatrix();
 
-    // Draw axis
     if (this.displayAxis) this.axis.display();
 
     var sca = [
-      this.scaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      this.scaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      this.scaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
+      this.scaleFactor, 0.0, 0.0, 0.0,
+      0.0, this.scaleFactor, 0.0, 0.0,
+      0.0, 0.0, this.scaleFactor, 0.0,
+      0.0, 0.0, 0.0, 1.0,
     ];
 
+    // this.multMatrix(sca);
     // Draw sphere first so transparent sun can blend against it
+
     this.pushMatrix();
     this.multMatrix(sca);
-    this.skyboxMaterial.apply();
     if (this.displaySphere) {
-      // 1. Update sun position based on interface
-      // this.updateSunPosition();
-      
-      // 2. Activate custom shader
+      this.skyboxMaterial.apply();
+
       this.setActiveShader(this.skyShader);
       
-      // 3. Draw sphere
       this.sphere.display();
+      this.setActiveShader(this.defaultShader);
+    }
+
+    if (this.displayClouds) {
+      this.gl.enable(this.gl.BLEND);
+      this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+      this.gl.depthMask(false);
+
+      this.setActiveShader(this.cloudShader);
+
+      this.cloudAppearance.apply();
+
+      this.cloudShader.setUniformsValues({  
+        uTime:    this._cloudTime,
+        uDensity: this.cloudDensity,
+        uScale:   this.cloudScale,
+      });
+      this.cloudSphere.display();
+      
+      this.setActiveShader(this.defaultShader);
+      this.gl.depthMask(true);
+      this.gl.disable(this.gl.BLEND);
     }
     this.popMatrix();
 
@@ -207,10 +238,6 @@ export class MyScene extends CGFscene {
     this.sunSphere.display();
     this.setActiveShader(this.defaultShader);
     this.popMatrix();
-      
-      // 4. Restore default shader for any other objects you draw later
-      this.setActiveShader(this.defaultShader); 
-
     // ---- END Primitive drawing section
   }
 }
