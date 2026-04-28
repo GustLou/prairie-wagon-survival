@@ -8,6 +8,7 @@ import {
 } from "../lib/CGF.js";
 import { SkyBox } from "./SkyBox.js";
 import { MyCloudSphere } from "./MyCloudSphere.js";
+import { MyRock } from "./MyRock.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -67,6 +68,11 @@ export class MyScene extends CGFscene {
     this._cloudTime    = 0.0;
     this._accumulatedTime = 0;
     this.setUpdatePeriod(16);
+
+    this.rock         = new MyRock(this, 0.0, 16, 24, 0.18);
+    this.displayRock  = true;
+    this.rockSeed     = 0.0;
+    this.rockRoughness = 0.18;
   }
 
   update(t) {
@@ -176,6 +182,9 @@ export class MyScene extends CGFscene {
   //   this.skyShader.setUniformsValues({ uSunPosition: [sunX, sunY, sunZ] });
   // }
 
+  rebuildRock() {
+    this.rock = new MyRock(this, this.rockSeed, 16, 24, this.rockRoughness);
+  }
 
   display() {
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
@@ -238,6 +247,13 @@ export class MyScene extends CGFscene {
     this.sunSphere.display();
     this.setActiveShader(this.defaultShader);
     this.popMatrix();
+
+    if (this.displayRock) {
+      this.pushMatrix();
+      this.scale(0.5, 0.5, 0.5);
+      this.rock.display();
+      this.popMatrix();
+    }
     // ---- END Primitive drawing section
   }
 }
