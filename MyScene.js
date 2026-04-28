@@ -69,10 +69,13 @@ export class MyScene extends CGFscene {
     this._accumulatedTime = 0;
     this.setUpdatePeriod(16);
 
-    this.rock         = new MyRock(this, 0.0, 16, 24, 0.18);
-    this.displayRock  = true;
-    this.rockSeed     = 0.0;
+    this.rockSeed      = 0.0;
     this.rockRoughness = 0.18;
+    this.rockScale     = 0.5;
+    this.rockTexBlend  = 0.0;
+    this.displayRock   = true;
+    this.rock = new MyRock(
+    this, this.rockSeed, 32, 24, this.rockRoughness,'textures/white_rock_texture.jpg','textures/black_rock_texture.jpg');
   }
 
   update(t) {
@@ -183,7 +186,11 @@ export class MyScene extends CGFscene {
   // }
 
   rebuildRock() {
-    this.rock = new MyRock(this, this.rockSeed, 16, 24, this.rockRoughness);
+    this.rock = new MyRock(
+        this, this.rockSeed, 16, 24, this.rockRoughness,
+        this.rock.tex0 ? this.rock.tex0.image.src.replace(location.href, '') : null,
+        this.rock.tex1 ? this.rock.tex1.image.src.replace(location.href, '') : null
+    );
   }
 
   display() {
@@ -250,7 +257,8 @@ export class MyScene extends CGFscene {
 
     if (this.displayRock) {
       this.pushMatrix();
-      this.scale(0.5, 0.5, 0.5);
+      this.scale(this.rockScale, this.rockScale, this.rockScale);
+      this.rock.rockShader.setUniformsValues({ uTexBlend: this.rockTexBlend });
       this.rock.display();
       this.popMatrix();
     }
