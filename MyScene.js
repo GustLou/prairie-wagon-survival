@@ -8,6 +8,7 @@ import {
 } from "../lib/CGF.js";
 import { SkyBox } from "./SkyBox.js";
 import { MyCloudSphere } from "./MyCloudSphere.js";
+import { MyRock } from "./MyRock.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -67,6 +68,14 @@ export class MyScene extends CGFscene {
     this._cloudTime    = 0.0;
     this._accumulatedTime = 0;
     this.setUpdatePeriod(16);
+
+    this.rockSeed      = 0.0;
+    this.rockRoughness = 0.18;
+    this.rockScale     = 0.5;
+    this.rockTexBlend  = 0.0;
+    this.displayRock   = true;
+    this.rock = new MyRock(
+    this, this.rockSeed, 32, 24, this.rockRoughness,'textures/white_rock_texture.jpg','textures/black_rock_texture.jpg');
   }
 
   update(t) {
@@ -176,6 +185,13 @@ export class MyScene extends CGFscene {
   //   this.skyShader.setUniformsValues({ uSunPosition: [sunX, sunY, sunZ] });
   // }
 
+  rebuildRock() {
+    this.rock = new MyRock(
+        this, this.rockSeed, 16, 24, this.rockRoughness,
+        this.rock.tex0 ? this.rock.tex0.image.src.replace(location.href, '') : null,
+        this.rock.tex1 ? this.rock.tex1.image.src.replace(location.href, '') : null
+    );
+  }
 
   display() {
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
@@ -238,6 +254,14 @@ export class MyScene extends CGFscene {
     this.sunSphere.display();
     this.setActiveShader(this.defaultShader);
     this.popMatrix();
+
+    if (this.displayRock) {
+      this.pushMatrix();
+      this.scale(this.rockScale, this.rockScale, this.rockScale);
+      this.rock.rockShader.setUniformsValues({ uTexBlend: this.rockTexBlend });
+      this.rock.display();
+      this.popMatrix();
+    }
     // ---- END Primitive drawing section
   }
 }

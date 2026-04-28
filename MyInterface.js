@@ -47,6 +47,15 @@ export class MyInterface extends CGFinterface {
         cloudFolder.add(this.scene, 'cloudScale',   1.0, 20.0 ).name('Scale');
         cloudFolder.open();
 
+        const rockFolder = this.gui.addFolder('Rock');
+        rockFolder.add(this.scene, 'displayRock').name('Display');
+        rockFolder.add(this.scene, 'rockScale',     0.1, 5.0 ).name('Scale');
+        rockFolder.add(this.scene, 'rockSeed',      0.0, 20.0).name('Seed')
+                .onFinishChange(() => this.scene.rebuildRock());
+        rockFolder.add(this.scene, 'rockRoughness', 0.0,  0.4).name('Roughness')
+                .onFinishChange(() => this.scene.rebuildRock());
+        rockFolder.add(this.scene, 'rockTexBlend',  0.0,  1.0).name('Texture Blend');
+        rockFolder.open();
         return true;
     }
 }
