@@ -84,6 +84,7 @@ export class MyScene extends CGFscene {
     this.displaySphere = true;
     this.displayClouds = true;
     this.displayGround = true;
+    this.pathSeed = 1.57;
     this.scaleFactor = 25;
     this.cloudSpeed = 0.001;
     this.cloudDensity = 0.62;
@@ -144,12 +145,14 @@ export class MyScene extends CGFscene {
     this.groundMaterial.setSpecular(0.0, 0.0, 0.0, 1.0);
     this.groundMaterial.setShininess(10.0);
 
-    this.groundDirtTexture = new CGFtexture(this, "textures/dirt.png");
+    this.groundDirtTexture = new CGFtexture(this, "textures/dirt2.png");
     this.groundColorTexture = new CGFtexture(
       this,
       "textures/terrainTexture.jpg",
     );
     this.groundHeightTexture = new CGFtexture(this, "textures/terrainMap.jpg");
+
+    this.groundPathTexture = new CGFtexture(this, "textures/pathTexture.png");
     this.groundMaterial.setTexture(this.groundColorTexture);
     this.groundMaterial.setTextureWrap("REPEAT", "REPEAT");
   }
@@ -231,21 +234,45 @@ export class MyScene extends CGFscene {
       this.scale(this.groundScale, this.groundScale, this.groundScale);
 
       this.groundColorTexture.bind(0);
-      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
-      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
+      this.gl.texParameteri(
+        this.gl.TEXTURE_2D,
+        this.gl.TEXTURE_WRAP_S,
+        this.gl.REPEAT,
+      );
+      this.gl.texParameteri(
+        this.gl.TEXTURE_2D,
+        this.gl.TEXTURE_WRAP_T,
+        this.gl.REPEAT,
+      );
       this.groundHeightTexture.bind(1);
       this.groundDirtTexture.bind(2);
       this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
       this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
+      this.groundPathTexture.bind(3);
+      this.gl.texParameteri(
+        this.gl.TEXTURE_2D,
+        this.gl.TEXTURE_WRAP_S,
+        this.gl.REPEAT,
+      );
+      this.gl.texParameteri(
+        this.gl.TEXTURE_2D,
+        this.gl.TEXTURE_WRAP_T,
+        this.gl.REPEAT,
+      );
 
       this.setActiveShader(this.terrainShader);
       this.terrainShader.setUniformsValues({
         uColorMap: 0,
         uHeightMap: 1,
         uDirtMap: 2,
+        uPathMap: 3,
         uHeightScale: 0.13,
         uAmbient: 0.6,
         uLightDir: [0.0, 0.8, 0.5],
+        uPathSeed: this.pathSeed,
+        uPathWidth: 0.03, // path thickness
+        uPathAmplitude: 0.04, // amplitude of path
+        uPathFrequency: 1.0, // number of bends
       });
       this.ground.display();
       this.setActiveShader(this.defaultShader);

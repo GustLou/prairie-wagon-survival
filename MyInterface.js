@@ -50,6 +50,7 @@ export class MyInterface extends CGFinterface {
     const groundFolder = this.gui.addFolder("Ground");
     groundFolder.add(this.scene, "displayGround").name("Display Terrain");
     groundFolder.add(this.scene, "groundScale", 0.1, 50.0).name("Ground Scale");
+    groundFolder.add(this.scene, "pathSeed", 0.0, 6.28).name("Path Seed");
     groundFolder.open();
 
     return true;
