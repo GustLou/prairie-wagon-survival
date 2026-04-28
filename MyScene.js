@@ -144,6 +144,7 @@ export class MyScene extends CGFscene {
     this.groundMaterial.setSpecular(0.0, 0.0, 0.0, 1.0);
     this.groundMaterial.setShininess(10.0);
 
+    this.groundDirtTexture = new CGFtexture(this, "textures/dirt.png");
     this.groundColorTexture = new CGFtexture(
       this,
       "textures/terrainTexture.jpg",
@@ -189,7 +190,7 @@ export class MyScene extends CGFscene {
       0.4,
       0.1,
       500,
-      vec3.fromValues(3, 3, 3),
+      vec3.fromValues(2, 6, 4),
       vec3.fromValues(0, 0, 0),
     );
   }
@@ -230,12 +231,18 @@ export class MyScene extends CGFscene {
       this.scale(this.groundScale, this.groundScale, this.groundScale);
 
       this.groundColorTexture.bind(0);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
       this.groundHeightTexture.bind(1);
+      this.groundDirtTexture.bind(2);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
+      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
 
       this.setActiveShader(this.terrainShader);
       this.terrainShader.setUniformsValues({
         uColorMap: 0,
         uHeightMap: 1,
+        uDirtMap: 2,
         uHeightScale: 0.13,
         uAmbient: 0.6,
         uLightDir: [0.0, 0.8, 0.5],
