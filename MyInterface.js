@@ -44,8 +44,16 @@ export class MyInterface extends CGFinterface {
         cloudFolder.add(this.scene, 'displayClouds').name('Display Clouds');
         cloudFolder.add(this.scene, 'cloudSpeed',   0.0, 0.008 ).name('Speed');
         cloudFolder.add(this.scene, 'cloudDensity', 0.0, 0.9).name('Density');
-        cloudFolder.add(this.scene, 'cloudScale',   1.0, 20.0 ).name('Scale');
+        cloudFolder.add(this.scene, 'cloudScale',   1.0, 50.0 ).name('Scale');
         cloudFolder.open();
+
+        const treeFolder = this.gui.addFolder('Tree');
+        treeFolder.add(this.scene, 'axiom').name('Axiom');
+        treeFolder.add(this.scene, 'angle').name('Angle');
+        treeFolder.add(this.scene, 'iterations').name('Iterations');
+        treeFolder.add(this.scene, 'treeScaleFactor').name('Scale Factor');
+        treeFolder.add(this.scene, 'button').name('Generate!');
+        treeFolder.open();
 
         return true;
     }

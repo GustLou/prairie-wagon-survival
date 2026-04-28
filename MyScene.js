@@ -8,6 +8,8 @@ import {
 } from "../lib/CGF.js";
 import { SkyBox } from "./SkyBox.js";
 import { MyCloudSphere } from "./MyCloudSphere.js";
+// import { Tree } from "./tree/Tree.js"
+import { MyLSPlant } from "./tree/MyLSPlant.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -20,6 +22,7 @@ export class MyScene extends CGFscene {
     this.sunScale = 0.3;
 
     this.initCameras();
+    this.initTrees();
 
     this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
     this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
@@ -29,6 +32,8 @@ export class MyScene extends CGFscene {
     this.axis = new CGFaxis(this);
     this.sphere = new SkyBox(this);
     this.sunSphere = new SkyBox(this, false);
+    this.tree = new MyLSPlant(this);
+    // this.tree = new Tree(this);
 
     //Initialize Materials and lights
     this.initSunMaterial();
@@ -57,14 +62,15 @@ export class MyScene extends CGFscene {
       uScale:   12.4,
     });
 
-    this.displayAxis   = true;
-    this.displaySphere = true;;
-    this.displayClouds = true;
-    this.scaleFactor   = 25;
-    this.cloudSpeed = 0.001;
-    this.cloudDensity  = 0.62;
-    this.cloudScale    = 6.0;
-    this._cloudTime    = 0.0;
+    this.displayAxis      = true;
+    this.displaySphere    = true;;
+    this.displayClouds    = true;
+    this.scaleFactor      = 25;
+    this.treeScaleFactor  = 0.5;
+    this.cloudSpeed       = 0.001;
+    this.cloudDensity     = 0.62;
+    this.cloudScale       = 6.0;
+    this._cloudTime       = 0.0;
     this._accumulatedTime = 0;
     this.setUpdatePeriod(16);
   }
@@ -162,6 +168,16 @@ export class MyScene extends CGFscene {
     this.setEmission(0.4, 0.65, 1.0, 1.0);
   }
 
+  initTrees() {
+    this.axiom = "X";
+    this.angle = 30.0;
+    this.iterations = 5;
+    this.treeScaleFactor= 0.5;
+    this.button = function(){
+        this.tree.init();
+    }
+  }
+
   // updateSunPosition() {
   //   // Convert degrees to radians
   //   let az = this.sunAzimuth * Math.PI / 180;
@@ -238,6 +254,23 @@ export class MyScene extends CGFscene {
     this.sunSphere.display();
     this.setActiveShader(this.defaultShader);
     this.popMatrix();
+    
+    this.setAmbient(0.2, 0.4, 0.8, 1.0);
+    this.setDiffuse(0.2, 0.4, 0.8, 1.0);
+    this.setSpecular(0.2, 0.4, 0.8, 1.0);
+    this.setEmission(0.0, 0.0, 0.0, 1.0);
+    this.setShininess(10.0);
+
+    this.generateTrees()
     // ---- END Primitive drawing section
+  }
+
+  generateTrees() {
+    this.tree.display();
+
+    // this.pushMatrix();
+    // this.translate(1, 0, 1);
+    // this.tree.display();
+    // this.popMatrix();
   }
 }
