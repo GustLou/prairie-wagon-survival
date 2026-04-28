@@ -8,6 +8,7 @@ import {
 } from "../lib/CGF.js";
 import { SkyBox } from "./SkyBox.js";
 import { MyCloudSphere } from "./MyCloudSphere.js";
+import { MyPlane } from "./MyPlane.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -30,14 +31,36 @@ export class MyScene extends CGFscene {
     this.sphere = new SkyBox(this);
     this.sunSphere = new SkyBox(this, false);
 
+    // Ground controls
+    this.ground = new MyPlane(this, 50);
+    this.groundScale = 2.0;
+
     //Initialize Materials and lights
     this.initSunMaterial();
     this.initSkyboxMaterial();
+    this.initGroundMaterial();
     this.initLights();
     this.initShader();
 
     // Shaders
-    this.skyShader = new CGFshader(this.gl, "shaders/sky.vert", "shaders/sky.frag");
+    this.skyShader = new CGFshader(
+      this.gl,
+      "shaders/sky.vert",
+      "shaders/sky.frag",
+    );
+
+    this.terrainShader = new CGFshader(
+      this.gl,
+      "shaders/terrain.vert",
+      "shaders/terrain.frag",
+    );
+    // this.terrainShader.setUniformsValues({
+    //   uColorMap: 0,
+    //   uHeightMap: 1,
+    //   uHeightScale: 0.09, // was 0.6 — much more subtle
+    //   uAmbient: 0.6,
+    //   uLightDir: [0.0, 0.8, 0.5],
+    // });
     this.cloudSphere = new MyCloudSphere(this, 0.97, 40, 60);
 
     this.cloudAppearance = new CGFappearance(this);
@@ -49,31 +72,31 @@ export class MyScene extends CGFscene {
     this.cloudShader = new CGFshader(
       this.gl,
       "shaders/cloud.vert",
-      "shaders/cloud.frag"
+      "shaders/cloud.frag",
     );
     this.cloudShader.setUniformsValues({
-      uTime:    0.000002,
+      uTime: 0.000002,
       uDensity: 0.62,
-      uScale:   12.4,
+      uScale: 12.4,
     });
 
-    this.displayAxis   = true;
-    this.displaySphere = true;;
+    this.displayAxis = true;
+    this.displaySphere = true;
     this.displayClouds = true;
-    this.scaleFactor   = 25;
+    this.displayGround = true;
+    this.scaleFactor = 25;
     this.cloudSpeed = 0.001;
-    this.cloudDensity  = 0.62;
-    this.cloudScale    = 6.0;
-    this._cloudTime    = 0.0;
+    this.cloudDensity = 0.62;
+    this.cloudScale = 6.0;
+    this._cloudTime = 0.0;
     this._accumulatedTime = 0;
     this.setUpdatePeriod(16);
   }
 
   update(t) {
-    this._accumulatedTime += t; 
+    this._accumulatedTime += t;
     this._cloudTime = (this._accumulatedTime / 10e11) * this.cloudSpeed;
   }
-
 
   initShader() {
     this.sunShader = new CGFshader(
@@ -112,6 +135,22 @@ export class MyScene extends CGFscene {
 
     this.sunTexture = new CGFtexture(this, "textures/sun_texture_2.jpg");
     this.sunMaterial.setTexture(this.sunTexture);
+  }
+
+  initGroundMaterial() {
+    this.groundMaterial = new CGFappearance(this);
+    this.groundMaterial.setAmbient(0.7, 0.7, 0.7, 1.0);
+    this.groundMaterial.setDiffuse(1.0, 1.0, 1.0, 1.0);
+    this.groundMaterial.setSpecular(0.0, 0.0, 0.0, 1.0);
+    this.groundMaterial.setShininess(10.0);
+
+    this.groundColorTexture = new CGFtexture(
+      this,
+      "textures/terrainTexture.jpg",
+    );
+    this.groundHeightTexture = new CGFtexture(this, "textures/terrainMap.jpg");
+    this.groundMaterial.setTexture(this.groundColorTexture);
+    this.groundMaterial.setTextureWrap("REPEAT", "REPEAT");
   }
 
   initSkyboxMaterial() {
@@ -176,21 +215,53 @@ export class MyScene extends CGFscene {
   //   this.skyShader.setUniformsValues({ uSunPosition: [sunX, sunY, sunZ] });
   // }
 
-
   display() {
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
     this.updateProjectionMatrix();
     this.loadIdentity();
     this.applyViewMatrix();
+    this.syncSunLight();
 
     if (this.displayAxis) this.axis.display();
+    if (this.displayGround) {
+      this.pushMatrix();
+      this.rotate(-Math.PI / 2, 1, 0, 0);
+      this.scale(this.groundScale, this.groundScale, this.groundScale);
+
+      this.groundColorTexture.bind(0);
+      this.groundHeightTexture.bind(1);
+
+      this.setActiveShader(this.terrainShader);
+      this.terrainShader.setUniformsValues({
+        uColorMap: 0,
+        uHeightMap: 1,
+        uHeightScale: 0.10,
+        uAmbient: 0.6,
+        uLightDir: [0.0, 0.8, 0.5],
+      });
+      this.ground.display();
+      this.setActiveShader(this.defaultShader);
+      this.popMatrix();
+    }
 
     var sca = [
-      this.scaleFactor, 0.0, 0.0, 0.0,
-      0.0, this.scaleFactor, 0.0, 0.0,
-      0.0, 0.0, this.scaleFactor, 0.0,
-      0.0, 0.0, 0.0, 1.0,
+      this.scaleFactor,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      this.scaleFactor,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      this.scaleFactor,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
     ];
 
     // this.multMatrix(sca);
@@ -202,7 +273,7 @@ export class MyScene extends CGFscene {
       this.skyboxMaterial.apply();
 
       this.setActiveShader(this.skyShader);
-      
+
       this.sphere.display();
       this.setActiveShader(this.defaultShader);
     }
@@ -216,13 +287,13 @@ export class MyScene extends CGFscene {
 
       this.cloudAppearance.apply();
 
-      this.cloudShader.setUniformsValues({  
-        uTime:    this._cloudTime,
+      this.cloudShader.setUniformsValues({
+        uTime: this._cloudTime,
         uDensity: this.cloudDensity,
-        uScale:   this.cloudScale,
+        uScale: this.cloudScale,
       });
       this.cloudSphere.display();
-      
+
       this.setActiveShader(this.defaultShader);
       this.gl.depthMask(true);
       this.gl.disable(this.gl.BLEND);
