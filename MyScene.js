@@ -236,7 +236,7 @@ export class MyScene extends CGFscene {
       this.terrainShader.setUniformsValues({
         uColorMap: 0,
         uHeightMap: 1,
-        uHeightScale: 0.10,
+        uHeightScale: 0.13,
         uAmbient: 0.6,
         uLightDir: [0.0, 0.8, 0.5],
       });
