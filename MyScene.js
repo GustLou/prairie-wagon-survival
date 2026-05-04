@@ -34,7 +34,20 @@ export class MyScene extends CGFscene {
 
     // Ground controls
     this.ground = new MyPlane(this, 50);
-    this.groundScale = 2.0;
+    this.groundScale = 25;
+    this.pathWidth = 0.03;
+    this.pathNumPoints = 12;
+    this.pathSeed = 0;
+
+    // Restore saved path from a previous session if one exists
+    const savedPath = JSON.parse(localStorage.getItem('cgra_path') || 'null');
+    if (savedPath) {
+      this.pathNumPoints = savedPath.numPoints;
+      this.pathSeed      = savedPath.seed;
+      this.pathWidth     = savedPath.width ?? 0.03;
+    }
+
+    this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
 
     //Initialize Materials and lights
     this.initSunMaterial();
@@ -85,7 +98,7 @@ export class MyScene extends CGFscene {
     this.displaySphere = true;
     this.displayClouds = true;
     this.displayGround = true;
-    this.pathSeed = 1.57;
+    this.pathWidth = 0.03;
     this.scaleFactor = 25;
     this.cloudSpeed = 0.001;
     this.cloudDensity = 0.62;
@@ -98,7 +111,7 @@ export class MyScene extends CGFscene {
     this.rockRoughness = 0.18;
     this.rockScale     = 0.5;
     this.rockTexBlend  = 0.0;
-    this.displayRock   = true;
+    this.displayRock   = false;
     this.rock = new MyRock(
     this, this.rockSeed, 32, 24, this.rockRoughness,'textures/white_rock_texture.jpg','textures/black_rock_texture.jpg');
   }
@@ -228,6 +241,32 @@ export class MyScene extends CGFscene {
   //   this.skyShader.setUniformsValues({ uSunPosition: [sunX, sunY, sunZ] });
   // }
 
+  rebuildPath() {
+    this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+  }
+
+  newRandomPath() {
+    this.pathSeed = Math.floor(Math.random() * 1000);
+    this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+  }
+
+  saveCurrentPath() {
+    localStorage.setItem('cgra_path', JSON.stringify({
+      numPoints: this.pathNumPoints,
+      seed:      this.pathSeed,
+      width:     this.pathWidth,
+    }));
+  }
+
+  printSavedPath() {
+    const raw = localStorage.getItem('cgra_path');
+    if (!raw) { alert('No path saved yet.'); return; }
+    const p = JSON.parse(raw);
+    const msg = `Saved path\n  Nodes : ${p.numPoints}\n  Seed  : ${p.seed}\n  Width : ${p.width}`;
+    console.log(msg);
+    alert(msg);
+  }
+
   rebuildRock() {
     this.rock = new MyRock(
         this, this.rockSeed, 16, 24, this.rockRoughness,
@@ -286,11 +325,12 @@ export class MyScene extends CGFscene {
         uHeightScale: 0.13,
         uAmbient: 0.6,
         uLightDir: [0.0, 0.8, 0.5],
-        uPathSeed: this.pathSeed,
-        uPathWidth: 0.03, // path thickness
-        uPathAmplitude: 0.04, // amplitude of path
-        uPathFrequency: 1.0, // number of bends
+        uPathWidth: this.pathWidth,
       });
+      // Pass MST edges
+      const prog = this.terrainShader.program;
+      this.gl.uniform4fv(this.gl.getUniformLocation(prog, 'uPathEdges'), this.ground.pathEdges);
+      this.gl.uniform1i(this.gl.getUniformLocation(prog, 'uNumEdges'), this.ground.numEdges);
       this.ground.display();
       this.setActiveShader(this.defaultShader);
       this.popMatrix();

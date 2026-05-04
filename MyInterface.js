@@ -49,9 +49,26 @@ export class MyInterface extends CGFinterface {
     // Ground controls
     const groundFolder = this.gui.addFolder("Ground");
     groundFolder.add(this.scene, "displayGround").name("Display Terrain");
-    groundFolder.add(this.scene, "groundScale", 0.1, 50.0).name("Ground Scale");
-    groundFolder.add(this.scene, "pathSeed", 0.0, 6.28).name("Path Seed");
+    groundFolder.add(this.scene, "groundScale", 0.1, 200).name("Ground Scale");
     groundFolder.open();
+
+    // Path generation controls
+    const pathFolder = this.gui.addFolder("Path Generation");
+    pathFolder.add(this.scene, "pathNumPoints", 3, 21, 1).name("Nodes")
+              .onChange(() => this.scene.rebuildPath());
+    const seedCtrl = pathFolder.add(this.scene, "pathSeed", 0, 999, 1).name("Seed")
+              .onChange(() => this.scene.rebuildPath());
+    pathFolder.add(this.scene, "pathWidth", 0.01, 0.1).name("Width")
+              .onChange(v => this.scene.terrainShader.setUniformsValues({ uPathWidth: v }));
+    const actions = {
+      generate: () => { this.scene.newRandomPath(); seedCtrl.updateDisplay(); },
+      save:     () => this.scene.saveCurrentPath(),
+      print:    () => this.scene.printSavedPath(),
+    };
+    pathFolder.add(actions, "generate").name("Generate New Path");
+    pathFolder.add(actions, "save").name("Save Current Path");
+    pathFolder.add(actions, "print").name("Print Saved Path");
+    pathFolder.open();
 
     const rockFolder = this.gui.addFolder('Rock');
     rockFolder.add(this.scene, 'displayRock').name('Display');

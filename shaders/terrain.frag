@@ -8,13 +8,13 @@ varying vec3 vNormal;
 
 uniform sampler2D uColorMap;   // unit 0 — grass map
 uniform sampler2D uDirtMap;    // unit 2 — dirt patches
-uniform sampler2D uPathMap; // unit 3 — stone path
+uniform sampler2D uPathMap;    // unit 3 — stone path
 
-// Path Parameters
-uniform float uPathSeed;       // shifts the path's position
-uniform float uPathWidth;      // how wide the path is (e.g. 0.06)
-uniform float uPathAmplitude;  // how curvy (e.g. 0.15)
-uniform float uPathFrequency;  // how many curves (e.g. 3.0)
+// MST path — each vec4 is one edge: (x1, y1, x2, y2) in UV [0,1] space
+#define MAX_EDGES 20
+uniform vec4  uPathEdges[MAX_EDGES];
+uniform int   uNumEdges;
+uniform float uPathWidth;  // edge half-width in UV space (e.g. 0.03)
 
 
 uniform vec3 uLightDir;
@@ -36,16 +36,23 @@ float noise(vec2 st) {
     return mix(a, b, u.x) + (c - a)*u.y*(1.0 - u.x) + (d - b)*u.x*u.y;
 }
 
-// Path 1: runs left→right, curves along Y
-float pathH(vec2 uv){
-    float c = 0.5 + uPathAmplitude * sin(uPathFrequency * uv.x * 6.2831 + uPathSeed);
-    return 1.0 - smoothstep(uPathWidth - 0.01, uPathWidth + 0.01, abs(uv.y - c));
+// Distance from point p to line segment [a, b]
+float segDist(vec2 p, vec2 a, vec2 b) {
+    vec2 ab = b - a;
+    vec2 ap = p - a;
+    float t = clamp(dot(ap, ab) / dot(ab, ab), 0.0, 1.0);
+    return length(p - (a + t * ab));
 }
 
-// Path 2: runs top→bottom, curves along X — different frequency so it looks distinct
-float pathV(vec2 uv){
-    float c = 0.5 + uPathAmplitude * 0.75 * sin((uPathFrequency + 1.0) * uv.y * 6.2831 + uPathSeed * 0.6);
-    return 1.0 - smoothstep(uPathWidth - 0.01, uPathWidth + 0.01, abs(uv.x - c));
+// Returns 1.0 on the MST path, 0.0 off it
+float mstPath(vec2 uv) {
+    float minD = 1.0e6;
+    for (int i = 0; i < MAX_EDGES; i++) {
+        if (i < uNumEdges) {
+            minD = min(minD, segDist(uv, uPathEdges[i].xy, uPathEdges[i].zw));
+        }
+    }
+    return 1.0 - smoothstep(uPathWidth * 0.75, uPathWidth, minD);
 }
 
 float fbm(vec2 st) {
@@ -72,7 +79,7 @@ void main() {
     vec4 color = mix(grassColor, dirtColor, dirtMask);
 
     // path logic
-    float totalPath = max(pathH(uv), pathV(uv));
+    float totalPath = mstPath(uv);
     color = mix(color, pathColor, totalPath);
 
     float lambert = max(dot(normalize(vNormal), normalize(uLightDir)), 0.0);
