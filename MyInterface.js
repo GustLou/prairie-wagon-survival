@@ -17,6 +17,13 @@ export class MyInterface extends CGFinterface {
     // https://github.com/dataarts/dat.gui/blob/master/API.md
     this.gui = new dat.GUI();
 
+    const actions = {
+      generatePath: () => { this.scene.newRandomPath(); this.scene.generateTrees(); seedCtrl.updateDisplay();},
+      generateTree: () => this.scene.generateTrees(),
+      save:         () => this.scene.saveCurrentPath(),
+      print:        () => this.scene.printSavedPath(),
+    };
+
     //Checkbox element in GUI
     this.gui.add(this.scene, "displayAxis").name("Display Axis");
     this.gui.add(this.scene, "displaySphere").name("Display Sphere");
@@ -43,8 +50,19 @@ export class MyInterface extends CGFinterface {
     cloudFolder.add(this.scene, "displayClouds").name("Display Clouds");
     cloudFolder.add(this.scene, "cloudSpeed", 0.0, 0.008).name("Speed");
     cloudFolder.add(this.scene, "cloudDensity", 0.0, 0.9).name("Density");
-    cloudFolder.add(this.scene, "cloudScale", 1.0, 20.0).name("Scale");
+    cloudFolder.add(this.scene, "cloudScale", 1.0, 50.0).name("Scale");
     cloudFolder.open();
+
+    const treeFolder = this.gui.addFolder('Tree');
+    treeFolder.add(this.scene, 'axiom').name('Axiom');
+    treeFolder.add(this.scene, 'angle').name('Angle');
+    treeFolder.add(this.scene, 'iterations').name('Iterations');
+    treeFolder.add(this.scene, 'treeScaleFactor').name('Scale Factor');
+    treeFolder.add(this.scene, 'treeMinDistanceToPath').name('Min Distance to Path');
+    treeFolder.add(this.scene, 'treeDensity', 0, 0.5).name('Density');
+    treeFolder.add(this.scene, 'button').name('Generate Trees');
+    treeFolder.add(actions, 'generateTree').name('Generate Layout');
+    treeFolder.open();
 
     // Ground controls
     const groundFolder = this.gui.addFolder("Ground");
@@ -60,17 +78,13 @@ export class MyInterface extends CGFinterface {
               .onChange(() => this.scene.rebuildPath());
     pathFolder.add(this.scene, "pathWidth", 0.01, 0.1).name("Width")
               .onChange(v => this.scene.terrainShader.setUniformsValues({ uPathWidth: v }));
-    const actions = {
-      generate: () => { this.scene.newRandomPath(); seedCtrl.updateDisplay(); },
-      save:     () => this.scene.saveCurrentPath(),
-      print:    () => this.scene.printSavedPath(),
-    };
-    pathFolder.add(actions, "generate").name("Generate New Path");
+    pathFolder.add(actions, "generatePath").name("Generate New Path");
     pathFolder.add(actions, "save").name("Save Current Path");
     pathFolder.add(actions, "print").name("Print Saved Path");
     pathFolder.open();
 
     const grassFolder = this.gui.addFolder('Grass');
+    grassFolder.add(this.scene, 'displayGrass').name('Display');
     grassFolder.add(this.scene, 'numPatches', 0, 80, 1).name('Patch Count')
                .onFinishChange(() => this.scene.rebuildGrass());
     grassFolder.add(this.scene, 'bladesPerPatch', 1, 40, 1).name('Blades per Patch')

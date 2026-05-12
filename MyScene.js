@@ -11,6 +11,8 @@ import { MyCloudSphere } from "./MyCloudSphere.js";
 import { MyPlane } from "./MyPlane.js";
 import { MyRock } from "./MyRock.js";
 import { MyGrass } from "./MyGrass.js";
+// import { Tree } from "./tree/Tree.js"
+import { MyLSPlant } from "./tree/MyLSPlant.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -26,6 +28,7 @@ export class MyScene extends CGFscene {
     this.sunScale = 0.3;
 
     this.initCameras();
+    this.initTrees();
 
     this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
     this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
@@ -40,6 +43,7 @@ export class MyScene extends CGFscene {
     this.ground = new MyPlane(this, 50);
     this.groundScale = 25;
     this.pathWidth = 0.03;
+    this.uHeightScale = 0.03;
 
     this.numPatches = 25; // number of patches center
     this.bladesPerPatch = 15; // density of each grass patch
@@ -56,14 +60,20 @@ export class MyScene extends CGFscene {
     }
 
     // Path edges must exist before grass is generated so isOnPath works
-    this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
 
     this.rebuildGrass();
+
+    // rock controls
     this.rocks = [];
     this.numRocks = 8;
     this.rockSpawnSeed  = 27.1;
     this.rebuildRocks();
 
+    // tree contols
+    this.tree = new MyLSPlant(this);
+    this.treeMinDistanceToPath = 0.03;
+    this.treeDensity = 0.1; // amount of trees per unit squared
 
     //Initialize Materials and lights
     this.initSunMaterial();
@@ -110,22 +120,26 @@ export class MyScene extends CGFscene {
       uScale: 12.4,
     });
 
-    this.displayAxis = true;
-    this.displaySphere = true;
-    this.displayClouds = true;
+    this.displayAxis    = false;
+    this.displaySphere    = false;
+    this.displayClouds    = false;
     this.displayGround = true;
     this.pathWidth = 0.03;
-    this.scaleFactor = 25;
-    this.cloudSpeed = 0.001;
-    this.cloudDensity = 0.62;
-    this.cloudScale = 6.0;
-    this._cloudTime = 0.0;
+    this.scaleFactor    = 25;
+    this.treeScaleFactor  = 0.5;
+    this.cloudSpeed       = 0.001;
+    this.cloudDensity    = 0.62;
+    this.cloudScale    = 6.0;
+    this._cloudTime    = 0.0;
     this._accumulatedTime = 0;
     this.setUpdatePeriod(16);
 
+    this.displayGrass  = true;
     this.displayRock   = true;
     this.rock = new MyRock(
     this, this.rockSeed, 32, 24, this.rockRoughness,'textures/white_rock_texture.jpg','textures/black_rock_texture.jpg');
+
+    this.generateTrees();
   }
 
   // Shortest distance from point (px, pz) to segment (x1, z1) -> (x2, z2)
@@ -198,7 +212,7 @@ export class MyScene extends CGFscene {
   terrainHeight(wx, wz) {
     const lx =  (wx / this.groundScale) * 1.5;
     const ly = -(wz / this.groundScale) * 1.5; // local Y = -world Z (due to -90° X rotation)
-    return this._fbm(lx, ly) * 0.13 * this.groundScale;
+    return this._fbm(lx, ly) * this.uHeightScale * this.groundScale;
   }
 
   initShader() {
@@ -314,6 +328,26 @@ export class MyScene extends CGFscene {
     this.setEmission(0.4, 0.65, 1.0, 1.0);
   }
 
+  initTrees() {
+    this.axiom = "X";
+    this.angle = 30.0;
+    this.iterations = 5;
+    this.treeScaleFactor= 0.5;
+    this.button = function(){
+        this.tree.init();
+    }
+  }
+
+  initTrees() {
+    this.axiom = "X";
+    this.angle = 30.0;
+    this.iterations = 5;
+    this.treeScaleFactor= 0.5;
+    this.button = function(){
+        this.tree.init();
+    }
+  }
+
   rebuildGrass() {
     this.grassBlades = [];
 
@@ -343,7 +377,7 @@ export class MyScene extends CGFscene {
             });
         }
     }
-}
+  }
 
 makeRng(seed) {
     let s = (seed * 9301 + 1) >>> 0 || 1;
@@ -390,7 +424,7 @@ rebuildRocks() {
 
   newRandomPath() {
     this.pathSeed = Math.floor(Math.random() * 1000);
-    this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
     this.rebuildGrass();
     this.rebuildRocks();
   }
@@ -460,7 +494,7 @@ rebuildRocks() {
         uHeightMap: 1,
         uDirtMap: 2,
         uPathMap: 3,
-        uHeightScale: 0.13,
+        uHeightScale: this.uHeightScale,
         uAmbient: 0.6,
         uLightDir: [0.0, 0.8, 0.5],
         uPathWidth: this.pathWidth,
@@ -493,7 +527,6 @@ rebuildRocks() {
       1.0,
     ];
 
-    // this.multMatrix(sca);
     // Draw sphere first so transparent sun can blend against it
 
     this.pushMatrix();
@@ -562,22 +595,122 @@ rebuildRocks() {
         uWindSpeed: 1.5 
     });
 
-    for (let i = 0; i < this.grassBlades.length; i++) {
-    let g = this.grassBlades[i];
+    if (this.displayGrass) {
+      for (let i = 0; i < this.grassBlades.length; i++) {
+        let g = this.grassBlades[i];
+  
+        this.windShader.setUniformsValues({
+            uHealth: g.object.health,
+            uBladeWorldPos: [g.pos[0], g.pos[2]]
+        });
+        
+        this.pushMatrix();
+        this.translate(g.pos[0], g.pos[1], g.pos[2]);
+        this.rotate(g.rot, 0, 1, 0);
+        this.scale(g.scale, g.scale, g.scale);
+        
+        g.object.display();
+        this.popMatrix();
+      }
+    }
+    this.setActiveShader(this.defaultShader);
+    
+    this.setAmbient(0.2, 0.4, 0.8, 1.0);
+    this.setDiffuse(0.2, 0.4, 0.8, 1.0);
+    this.setSpecular(0.2, 0.4, 0.8, 1.0);
+    this.setEmission(0.0, 0.0, 0.0, 1.0);
+    this.setShininess(10.0);
 
-    this.windShader.setUniformsValues({
-        uHealth: g.object.health,
-        uBladeWorldPos: [g.pos[0], g.pos[2]]
-    });
+    if (this.treePositions) {
+      for (let i = 0; i < this.treePositions.length; i++) {
+        let pos = this.treePositions[i];
+
+        const finalX = pos.x * this.groundScale + pos.randomOffset;
+        const finalY = pos.y; // final Y position to be determined
+        const finalZ = pos.z * this.groundScale + pos.randomOffset;
+        
+        this.pushMatrix();
+
+        this.translate(finalX, finalY, finalZ);
+        this.rotate(pos.rotation, 0, 1, 0);
+        this.scale(pos.scale, pos.scale, pos.scale);
+        
+        this.tree.display();
+        
+        this.popMatrix();
+      }
+    }
+  }
+
+  generateTrees() {
+    this.tree.init();
     
-    this.pushMatrix();
-    this.translate(g.pos[0], g.pos[1], g.pos[2]);
-    this.rotate(g.rot, 0, 1, 0);
-    this.scale(g.scale, g.scale, g.scale);
-    
-    g.object.display();
-    this.popMatrix();
-}
-    // ---- END Primitive drawing section
+    this.treePositions = [];
+    const area = this.groundScale * this.groundScale;
+    const numTrees = Math.round(area * this.treeDensity);
+
+    let failedAttempts = 0;
+    for (let i = 0; i < numTrees; i++) {
+      let randomX = (Math.random() - 0.5);
+      let randomZ = (Math.random() - 0.5);
+      
+      if (this.checkTreeOutsideAllEdges({ x: randomX, z: randomZ })) {
+        this.treePositions.push({
+          x: randomX,
+          y: 0,
+          z: randomZ,
+          randomOffset: 0,
+          scale: this.treeScaleFactor * (0.6 + Math.random() * 0.8),
+          rotation: Math.random() * Math.PI * 2
+        });
+      } else if (failedAttempts < numTrees) {
+        failedAttempts++;
+        i--;
+      } else {
+        // the tree density is calculated based on the total area of the ground, so if we're failing so much,
+        // it means the available area is too small and shouldn't have too many trees
+        break;
+      }
+    }
+  }
+  checkTreeOutsideAllEdges(tree) {
+    for (const edge of this.edges) {
+      if (!this.checkTreeOutsideEdge(tree, edge)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  checkTreeOutsideEdge(tree, edge) {
+    const [start, end] = edge;
+
+    // Edges are in [0, 1] space, but the 'tree' object is in [-0.5, 0.5] space.
+    // Shift the tree coordinates back to [0, 1] for accurate math.
+    const tx = tree.x + 0.5;
+    const tz = tree.z + 0.5;
+
+    // Calculate edge unitvector
+    const dx = end[0] - start[0];
+    const dz = end[1] - start[1];
+    const l2 = dx * dx + dz * dz; // Length squared
+
+    // Handle the edge case of a zero-length path segment
+    if (l2 === 0) {
+      const dist = Math.sqrt(Math.pow(tx - start[0], 2) + Math.pow(tz - start[1], 2));
+      return dist > (this.pathWidth + this.treeMinDistanceToPath);
+    }
+
+    // 't' is the projection of the tree onto the infinite line, 
+    // clamped between 0 and 1 so it doesn't overshoot the line segment.
+    let t = ((tx - start[0]) * dx + (tz - start[1]) * dz) / l2;
+    t = Math.max(0, Math.min(1, t));
+
+    const closestX = start[0] + t * dx;
+    const closestZ = start[1] + t * dz;
+
+    const distance = Math.sqrt(Math.pow(tx - closestX, 2) + Math.pow(tz - closestZ, 2));
+
+    return distance > (this.pathWidth + this.treeMinDistanceToPath);
   }
 }
