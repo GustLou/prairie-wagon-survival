@@ -20,7 +20,7 @@ export class MyScene extends CGFscene {
     super.init(application);
 
     this.grassBlades = []; // list of grass blades
-    this.numGrass = 50;
+    this.numGrass = 250;
 
     // Procedural generation of grass blades
   for (let i = 0; i < this.numGrass; i++) {
@@ -156,7 +156,7 @@ export class MyScene extends CGFscene {
       "shaders/wind.vert",
       "shaders/wind.frag",
     );
-    this.windShader.setUniformsValues({ uTime: 0.0, uSampler: 0 });
+    this.windShader.setUniformsValues({ uTime: 0.0 });
   }
 
   updateSunShaderUniforms() {
@@ -448,6 +448,10 @@ export class MyScene extends CGFscene {
 
     for (let i = 0; i < this.grassBlades.length; i++) {
     let g = this.grassBlades[i];
+
+    this.windShader.setUniformsValues({ 
+        uHealth: g.object.health 
+    });
     
     this.pushMatrix();
     this.translate(g.pos[0], g.pos[1], g.pos[2]);

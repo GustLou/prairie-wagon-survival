@@ -15,6 +15,7 @@ export class MyGrass extends CGFobject {
     this.width = width * (0.8 + Math.random() * 0.4);
     this.height = height * (0.7 + Math.random() * 0.6);
     this.tilt = (Math.random() - 0.5) * 0.2; // Small random lean
+    this.health = Math.random(); // how alive is the grass blade 0.0 - almost dead 1.0 - fully alive, will use this for the colors
 
     this.initBuffers();
   }

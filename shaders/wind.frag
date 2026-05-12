@@ -3,14 +3,16 @@ precision highp float;
 #endif
 
 varying vec2 vTextureCoord;
-uniform sampler2D uSampler;
+uniform float uHealth;
 
 void main() {
-    vec4 color = texture2D(uSampler, vTextureCoord);
+    vec3 lushGreen = vec3(0.3, 0.6, 0.1);
+    vec3 deadBrown = vec3(0.5, 0.4, 0.2);
 
-    // Transparency check: Essential if using textures with alpha channels
-    if (color.a < 0.1)
-        discard;
+    vec3 mixedColor = mix(deadBrown, lushGreen, uHealth);
 
-    gl_FragColor = color;
+    // vertical shading gradient, darker at base and lighter at tip
+    float shadow = 0.6 + 0.4 * (1.0 - vTextureCoord.y);
+
+    gl_FragColor = vec4(mixedColor * shadow, 1.0);
 }
