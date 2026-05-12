@@ -17,6 +17,13 @@ export class MyInterface extends CGFinterface {
     // https://github.com/dataarts/dat.gui/blob/master/API.md
     this.gui = new dat.GUI();
 
+    const actions = {
+      generatePath: () => { this.scene.newRandomPath(); this.scene.generateTrees(); seedCtrl.updateDisplay();},
+      generateTree: () => this.scene.generateTrees(),
+      save:         () => this.scene.saveCurrentPath(),
+      print:        () => this.scene.printSavedPath(),
+    };
+
     //Checkbox element in GUI
     this.gui.add(this.scene, "displayAxis").name("Display Axis");
     this.gui.add(this.scene, "displaySphere").name("Display Sphere");
@@ -51,7 +58,10 @@ export class MyInterface extends CGFinterface {
     treeFolder.add(this.scene, 'angle').name('Angle');
     treeFolder.add(this.scene, 'iterations').name('Iterations');
     treeFolder.add(this.scene, 'treeScaleFactor').name('Scale Factor');
-    treeFolder.add(this.scene, 'button').name('Generate!');
+    treeFolder.add(this.scene, 'treeMinDistanceToPath').name('Min Distance to Path');
+    treeFolder.add(this.scene, 'treeDensity', 0, 0.5).name('Density');
+    treeFolder.add(this.scene, 'button').name('Generate Trees');
+    treeFolder.add(actions, 'generateTree').name('Generate Layout');
     treeFolder.open();
 
     // Ground controls
@@ -68,12 +78,7 @@ export class MyInterface extends CGFinterface {
               .onChange(() => this.scene.rebuildPath());
     pathFolder.add(this.scene, "pathWidth", 0.01, 0.1).name("Width")
               .onChange(v => this.scene.terrainShader.setUniformsValues({ uPathWidth: v }));
-    const actions = {
-      generate: () => { this.scene.newRandomPath(); seedCtrl.updateDisplay(); },
-      save:     () => this.scene.saveCurrentPath(),
-      print:    () => this.scene.printSavedPath(),
-    };
-    pathFolder.add(actions, "generate").name("Generate New Path");
+    pathFolder.add(actions, "generatePath").name("Generate New Path");
     pathFolder.add(actions, "save").name("Save Current Path");
     pathFolder.add(actions, "print").name("Print Saved Path");
     pathFolder.open();

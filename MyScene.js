@@ -50,9 +50,12 @@ export class MyScene extends CGFscene {
       this.pathWidth     = savedPath.width ?? 0.03;
     }
 
-    this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    
+    // tree contols
     this.tree = new MyLSPlant(this);
-    // this.tree = new Tree(this);
+    this.treeMinDistanceToPath = 0.03;
+    this.treeDensity = 0.1; // amount of trees per unit squared
 
     //Initialize Materials and lights
     this.initSunMaterial();
@@ -265,7 +268,7 @@ export class MyScene extends CGFscene {
 
   newRandomPath() {
     this.pathSeed = Math.floor(Math.random() * 1000);
-    this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
   }
 
   saveCurrentPath() {
@@ -373,7 +376,6 @@ export class MyScene extends CGFscene {
       1.0,
     ];
 
-    // this.multMatrix(sca);
     // Draw sphere first so transparent sun can blend against it
 
     this.pushMatrix();
@@ -433,16 +435,96 @@ export class MyScene extends CGFscene {
     this.setEmission(0.0, 0.0, 0.0, 1.0);
     this.setShininess(10.0);
 
-    this.tree.display();
-    // ---- END Primitive drawing section
+    if (this.treePositions) {
+      for (let i = 0; i < this.treePositions.length; i++) {
+        let pos = this.treePositions[i];
+
+        const finalX = pos.x * this.groundScale + pos.randomOffset;
+        const finalY = pos.y; // final Y position to be determined
+        const finalZ = pos.z * this.groundScale + pos.randomOffset;
+        
+        this.pushMatrix();
+
+        this.translate(finalX, finalY, finalZ);
+        this.rotate(pos.rotation, 0, 1, 0);
+        this.scale(pos.scale, pos.scale, pos.scale);
+        
+        this.tree.display();
+        
+        this.popMatrix();
+      }
+    }
   }
 
   generateTrees() {
     this.tree.init();
+    
+    this.treePositions = [];
+    const area = this.groundScale * this.groundScale;
+    const numTrees = Math.round(area * this.treeDensity);
 
-    // this.pushMatrix();
-    // this.translate(1, 0, 1);
-    // this.tree.display();
-    // this.popMatrix();
+    let failedAttempts = 0;
+    for (let i = 0; i < numTrees; i++) {
+      let randomX = (Math.random() - 0.5);
+      let randomZ = (Math.random() - 0.5);
+      
+      if (this.checkTreeOutsideAllEdges({ x: randomX, z: randomZ })) {
+        this.treePositions.push({
+          x: randomX,
+          y: 0,
+          z: randomZ,
+          randomOffset: 0,
+          scale: this.treeScaleFactor * (0.6 + Math.random() * 0.8),
+          rotation: Math.random() * Math.PI * 2
+        });
+      } else if (failedAttempts < numTrees) {
+        failedAttempts++;
+        i--;
+      } else {
+        // the tree density is calculated based on the total area of the ground, so if we're failing so much,
+        // it means the available area is too small and shouldn't have too many trees
+        break;
+      }
+    }
+  }
+  checkTreeOutsideAllEdges(tree) {
+    for (const edge of this.edges) {
+      if (!this.checkTreeOutsideEdge(tree, edge)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  checkTreeOutsideEdge(tree, edge) {
+    const [start, end] = edge;
+
+    // Edges are in [0, 1] space, but the 'tree' object is in [-0.5, 0.5] space.
+    // Shift the tree coordinates back to [0, 1] for accurate math.
+    const tx = tree.x + 0.5;
+    const tz = tree.z + 0.5;
+
+    // Calculate edge unitvector
+    const dx = end[0] - start[0];
+    const dz = end[1] - start[1];
+    const l2 = dx * dx + dz * dz; // Length squared
+
+    // Handle the edge case of a zero-length path segment
+    if (l2 === 0) {
+      const dist = Math.sqrt(Math.pow(tx - start[0], 2) + Math.pow(tz - start[1], 2));
+      return dist > (this.pathWidth + this.treeMinDistanceToPath);
+    }
+
+    // 't' is the projection of the tree onto the infinite line, 
+    // clamped between 0 and 1 so it doesn't overshoot the line segment.
+    let t = ((tx - start[0]) * dx + (tz - start[1]) * dz) / l2;
+    t = Math.max(0, Math.min(1, t));
+
+    const closestX = start[0] + t * dx;
+    const closestZ = start[1] + t * dz;
+
+    const distance = Math.sqrt(Math.pow(tx - closestX, 2) + Math.pow(tz - closestZ, 2));
+
+    return distance > (this.pathWidth + this.treeMinDistanceToPath);
   }
 }

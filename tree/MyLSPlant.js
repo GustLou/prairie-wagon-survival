@@ -8,7 +8,7 @@ import { MyLeaf } from "./MyLeaf.js";
  * @param scene - Reference to MyScene object
  */
 export class MyLSPlant extends MyLSystem {
-	constructor(scene, trunkWidth = 0.25, leafScale = 20) {
+	constructor(scene, trunkWidth = 0.5, leafScale = 30) {
         super(scene);
         this.trunkWidth = trunkWidth;
         this.leafScale = leafScale;
