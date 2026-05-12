@@ -99,9 +99,9 @@ export class MyScene extends CGFscene {
       uScale: 12.4,
     });
 
-    this.displayAxis    = true;
-    this.displaySphere    = true;
-    this.displayClouds    = true;
+    this.displayAxis    = false;
+    this.displaySphere    = false;
+    this.displayClouds    = false;
     this.displayGround = true;
     this.pathWidth = 0.03;
     this.scaleFactor    = 25;
@@ -120,6 +120,8 @@ export class MyScene extends CGFscene {
     this.displayRock   = false;
     this.rock = new MyRock(
     this, this.rockSeed, 32, 24, this.rockRoughness,'textures/white_rock_texture.jpg','textures/black_rock_texture.jpg');
+
+    this.generateTrees();
   }
 
   update(t) {
@@ -431,12 +433,12 @@ export class MyScene extends CGFscene {
     this.setEmission(0.0, 0.0, 0.0, 1.0);
     this.setShininess(10.0);
 
-    this.generateTrees()
+    this.tree.display();
     // ---- END Primitive drawing section
   }
 
   generateTrees() {
-    this.tree.display();
+    this.tree.init();
 
     // this.pushMatrix();
     // this.translate(1, 0, 1);

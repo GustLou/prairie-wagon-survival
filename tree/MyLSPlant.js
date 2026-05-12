@@ -8,8 +8,10 @@ import { MyLeaf } from "./MyLeaf.js";
  * @param scene - Reference to MyScene object
  */
 export class MyLSPlant extends MyLSystem {
-	constructor(scene) {
+	constructor(scene, trunkWidth = 0.25, leafScale = 20) {
         super(scene);
+        this.trunkWidth = trunkWidth;
+        this.leafScale = leafScale;
     }
 
     // Cria o lexico da gramatica
@@ -19,9 +21,9 @@ export class MyLSPlant extends MyLSystem {
 
         // adicionar pares caracter / primitiva
         this.grammar.push("F")
-        this.primitives.push(new MyBranch(this.scene, 0.25));
+        this.primitives.push(new MyBranch(this.scene, this.trunkWidth));
         this.grammar.push("X")
-        this.primitives.push(new MyLeaf(this.scene, 20));
+        this.primitives.push(new MyLeaf(this.scene, this.leafScale));
     }
 
     // cria as producoes
