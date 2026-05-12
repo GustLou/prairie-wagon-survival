@@ -41,19 +41,38 @@ export class MyScene extends CGFscene {
     this.groundScale = 25;
     this.pathWidth = 0.03;
 
-    // Grass generation — must happen after groundScale is set so terrainHeight works
-    for (let i = 0; i < this.numGrass; i++) {
-      let levels = Math.floor(Math.random() * 2) + 1;
-      let blade = new MyGrass(this, levels, 0.1, 0.2 + Math.random() * 0.2);
-      let wx = (Math.random() - 0.5) * 24;
-      let wz = (Math.random() - 0.5) * 24;
-      this.grassBlades.push({
-        object: blade,
-        pos: [ wx, this.terrainHeight(wx, wz), wz ],
-        rot: Math.random() * Math.PI * 2,
-        scale: 0.8 + Math.random() * 0.4
-      });
+    this.numPatches = 25; // number of patches center
+    this.bladesPerPatch = 15; // density of each grass patch
+
+    for(let p = 0; p < this.numPatches; p++){
+      // define the center of the patch and its general health
+      let centerX = (Math.random() - 0.5) * (this.groundScale - 4.0);
+      let centerZ = (Math.random() - 0.5) * (this.groundScale - 4.0);
+      let patchHealth = Math.random();
+
+      for(let b = 0; b < this.bladesPerPatch; b++){
+        // natural circle 
+        let angle = Math.random() * Math.PI * 2;
+        let radius = 2.0 * Math.sqrt(Math.random());
+
+        let wx = centerX + radius * Math.cos(angle);
+        let wz = centerZ + radius * Math.sin(angle);
+
+        // create the blade and inherit patch health with slight changes
+        let levels = Math.floor(Math.random() * 2) + 2;
+        let blade = new MyGrass(this,levels,0.1,0.3 + Math.random() * 0.3);
+
+        blade.health = Math.max(0,Math.min(1,patchHealth + (Math.random()-0.5) * 0.2));
+
+        this.grassBlades.push({
+            object: blade,
+            pos: [ wx, this.terrainHeight(wx, wz), wz ], // Correct height for rolling hills
+            rot: Math.random() * Math.PI * 2,
+            scale: 0.8 + Math.random() * 0.4
+        });
+      }
     }
+
     this.pathNumPoints = 12;
     this.pathSeed = 0;
 
@@ -292,35 +311,34 @@ export class MyScene extends CGFscene {
     this.setEmission(0.4, 0.65, 1.0, 1.0);
   }
 
-  // updateSunPosition() {
-  //   // Convert degrees to radians
-  //   let az = this.sunAzimuth * Math.PI / 180;
-  //   let el = this.sunElevation * Math.PI / 180;
-
-  //   // Calculate X, Y, Z based on spherical coordinates
-  //   let sunX = Math.cos(el) * Math.sin(az);
-  //   let sunY = Math.sin(el);
-  //   let sunZ = Math.cos(el) * Math.cos(az);
-
-  //   // Send the values to the fragment shader
-  //   this.skyShader.setUniformsValues({ uSunPosition: [sunX, sunY, sunZ] });
-  // }
-
   rebuildGrass() {
     this.grassBlades = [];
-    for (let i = 0; i < this.numGrass; i++) {
-      let levels = Math.floor(Math.random() * 2) + 1;
-      let blade = new MyGrass(this, levels, 0.1, 0.2 + Math.random() * 0.2);
-      let wx = (Math.random() - 0.5) * 24;
-      let wz = (Math.random() - 0.5) * 24;
-      this.grassBlades.push({
-        object: blade,
-        pos: [wx, this.terrainHeight(wx, wz), wz],
-        rot: Math.random() * Math.PI * 2,
-        scale: 0.8 + Math.random() * 0.4
-      });
+
+    for (let p = 0; p < this.numPatches; p++) {
+        let centerX = (Math.random() - 0.5) * (this.groundScale - 4.0);
+        let centerZ = (Math.random() - 0.5) * (this.groundScale - 4.0);
+        let patchHealth = Math.random();
+
+        for (let b = 0; b < this.bladesPerPatch; b++) {
+            let angle = Math.random() * Math.PI * 2;
+            let radius = 2.0 * Math.sqrt(Math.random());
+            
+            let wx = centerX + radius * Math.cos(angle);
+            let wz = centerZ + radius * Math.sin(angle);
+
+            let levels = Math.floor(Math.random() * 2) + 2;
+            let blade = new MyGrass(this, levels, 0.1, 0.2 + Math.random() * 0.3);
+            blade.health = Math.max(0, Math.min(1, patchHealth + (Math.random() - 0.5) * 0.2));
+
+            this.grassBlades.push({
+                object: blade,
+                pos: [wx, this.terrainHeight(wx, wz), wz],
+                rot: Math.random() * Math.PI * 2,
+                scale: 0.8 + Math.random() * 0.4
+            });
+        }
     }
-  }
+}
 
   rebuildPath() {
     this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);

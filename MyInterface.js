@@ -71,7 +71,9 @@ export class MyInterface extends CGFinterface {
     pathFolder.open();
 
     const grassFolder = this.gui.addFolder('Grass');
-    grassFolder.add(this.scene, 'numGrass', 0, 500, 1).name('Blade Count')
+    grassFolder.add(this.scene, 'numPatches', 0, 80, 1).name('Patch Count')
+               .onFinishChange(() => this.scene.rebuildGrass());
+    grassFolder.add(this.scene, 'bladesPerPatch', 1, 40, 1).name('Blades per Patch')
                .onFinishChange(() => this.scene.rebuildGrass());
     grassFolder.open();
 
