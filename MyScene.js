@@ -352,18 +352,21 @@ export class MyScene extends CGFscene {
     this.grassBlades = [];
 
     for (let p = 0; p < this.numPatches; p++) {
-        let centerX = (Math.random() - 0.5) * (this.groundScale - 4.0);
-        let centerZ = (Math.random() - 0.5) * (this.groundScale - 4.0);
+        let normCenterX = Math.random() - 0.5;
+        let normCenterZ = Math.random() - 0.5;
         let patchHealth = Math.random();
 
         for (let b = 0; b < this.bladesPerPatch; b++) {
             let angle = Math.random() * Math.PI * 2;
             let radius = 2.0 * Math.sqrt(Math.random());
             
-            let wx = centerX + radius * Math.cos(angle);
-            let wz = centerZ + radius * Math.sin(angle);
+            let offsetX = radius * Math.cos(angle);
+            let offsetZ = radius * Math.sin(angle);
 
-            if (this.isOnPath(wx, wz)) continue;
+            let tempWx = (normCenterX * (this.groundScale - 4.0)) + offsetX;
+            let tempWz = (normCenterZ * (this.groundScale - 4.0)) + offsetZ;
+
+            if (this.isOnPath(tempWx, tempWz)) continue;
 
             let levels = Math.floor(Math.random() * 2) + 2;
             let blade = new MyGrass(this, levels, 0.1, 0.2 + Math.random() * 0.3);
@@ -371,7 +374,10 @@ export class MyScene extends CGFscene {
 
             this.grassBlades.push({
                 object: blade,
-                pos: [wx, this.terrainHeight(wx, wz), wz],
+                normCenterX: normCenterX,
+                normCenterZ: normCenterZ,
+                offsetX: offsetX,
+                offsetZ: offsetZ,
                 rot: Math.random() * Math.PI * 2,
                 scale: 0.8 + Math.random() * 0.4
             });
@@ -414,7 +420,7 @@ rebuildRocks() {
             texBlend: 0.5  + rng() * 0.5,
         });
     }
-}
+  }
 
   rebuildPath() {
     this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
@@ -599,13 +605,20 @@ rebuildRocks() {
       for (let i = 0; i < this.grassBlades.length; i++) {
         let g = this.grassBlades[i];
   
+      // 1. Calculate the real world position dynamically 
+      let wx = (g.normCenterX * (this.groundScale - 4.0)) + g.offsetX;
+      let wz = (g.normCenterZ * (this.groundScale - 4.0)) + g.offsetZ;
+      
+      // 2. Fetch the terrain height at the new scaled position
+      let wy = this.terrainHeight(wx, wz);
+
         this.windShader.setUniformsValues({
             uHealth: g.object.health,
-            uBladeWorldPos: [g.pos[0], g.pos[2]]
+            uBladeWorldPos: [wx, wz]
         });
         
         this.pushMatrix();
-        this.translate(g.pos[0], g.pos[1], g.pos[2]);
+        this.translate(wx, wy, wz); // Use dynamically calculated pos
         this.rotate(g.rot, 0, 1, 0);
         this.scale(g.scale, g.scale, g.scale);
         
@@ -661,7 +674,7 @@ rebuildRocks() {
           z: randomZ,
           randomOffset: 0,
           scale: this.treeScaleFactor * (0.6 + Math.random() * 0.8),
-          rotation: Math.random() * Math.PI * 2
+          rotation: Math.random() * Math.PI * 2,
         });
       } else if (failedAttempts < numTrees) {
         failedAttempts++;
