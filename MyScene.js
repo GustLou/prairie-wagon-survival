@@ -32,8 +32,8 @@ export class MyScene extends CGFscene {
     this.enableTextures(true);
 
     this.axis = new CGFaxis(this);
-    this.sphere = new SkyBox(this);
-    this.sunSphere = new SkyBox(this, false);
+    this.sphere = new SkyBox(this, true);
+    this.sunSphere = new SkyBox(this, false, false, 18, 8);
 
     // Ground controls
     this.ground = new MyPlane(this, 50);
