@@ -79,12 +79,10 @@ export class MyInterface extends CGFinterface {
 
     const rockFolder = this.gui.addFolder('Rock');
     rockFolder.add(this.scene, 'displayRock').name('Display');
-    rockFolder.add(this.scene, 'rockScale',     0.1, 5.0 ).name('Scale');
-    rockFolder.add(this.scene, 'rockSeed',      0.0, 20.0).name('Seed')
-                .onFinishChange(() => this.scene.rebuildRock());
-    rockFolder.add(this.scene, 'rockRoughness', 0.0,  0.4).name('Roughness')
-                .onFinishChange(() => this.scene.rebuildRock());
-    rockFolder.add(this.scene, 'rockTexBlend',  0.0,  1.0).name('Texture Blend');
+    rockFolder.add(this.scene, 'numRocks',      1,   50,  1  ).name('Count')
+          .onFinishChange(() => this.scene.rebuildRocks());
+    rockFolder.add(this.scene, 'rockSpawnSeed', 0,  100,  0.1).name('Spawn Seed')
+          .onFinishChange(() => this.scene.rebuildRocks());
     rockFolder.open();
     return true;
     }

@@ -15,6 +15,7 @@ uniform float uRoughness;
 varying vec3  vNormal;
 varying vec2  vTexCoord;
 varying float vNoise;
+varying vec3 vPosition;
 
 float hash(vec3 p) {
     p  = fract(p * vec3(443.897, 441.423, 437.195));
@@ -51,18 +52,34 @@ void main() {
     float n    = fbm(dir * 2.5 + uSeed);
     float disp = (n * 2.0 - 1.0) * uRoughness;
 
-    vec3 displaced = aVertexPosition + dir * disp;
+    vec3 displaced = dir + dir * disp;
 
     float eps = 0.02;
-    vec3 t1   = normalize(vec3(-dir.z, 0.0, dir.x));
-    vec3 t2   = normalize(cross(dir, t1));
+    vec3 up = abs(dir.y) > 0.99
+        ? vec3(1.0, 0.0, 0.0)
+        : vec3(0.0, 1.0, 0.0);
 
-    vec3 pd1 = (dir + eps*t1) + dir * ((fbm((dir + eps*t1)*2.5 + uSeed)*2.0 - 1.0)*uRoughness);
-    vec3 pd2 = (dir + eps*t2) + dir * ((fbm((dir + eps*t2)*2.5 + uSeed)*2.0 - 1.0)*uRoughness);
+    vec3 t1 = normalize(cross(up, dir));
+    vec3 t2 = normalize(cross(dir, t1));
 
-    vNormal   = normalize(cross(pd1 - displaced, pd2 - displaced));
+    vec3 dir1 = normalize(dir + eps * t1);
+    vec3 dir2 = normalize(dir + eps * t2);
+
+    float disp1 = (fbm(dir1 * 2.5 + uSeed) * 2.0 - 1.0) * uRoughness;
+    float disp2 = (fbm(dir2 * 2.5 + uSeed) * 2.0 - 1.0) * uRoughness;
+
+    vec3 pd1 = dir1 + dir1 * disp1;
+    vec3 pd2 = dir2 + dir2 * disp2;
+
+    vec3 normal = normalize(cross(pd2 - displaced, pd1 - displaced));
+
+    vNormal = normalize((uMVMatrix * vec4(normal, 0.0)).xyz);
+
     vTexCoord = aTextureCoord;
     vNoise    = n;
+    vec4 viewPos = uMVMatrix * vec4(displaced, 1.0);
 
-    gl_Position = uPMatrix * uMVMatrix * vec4(displaced, 1.0);
+    vPosition = viewPos.xyz;
+
+    gl_Position = uPMatrix * viewPos;
 }

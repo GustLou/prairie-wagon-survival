@@ -8,8 +8,11 @@ varying float vNoise;
 
 uniform float uSeed;
 uniform float uTexBlend;
+uniform float uNormalFlip;
+uniform vec3 uLightDir;
 uniform sampler2D uSampler0;
 uniform sampler2D uSampler1;
+
 
 float hash2(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -51,7 +54,7 @@ void main() {
     float mossMask = smoothstep(0.3, 0.8, N.y) * smoothstep(0.4, 0.7, fbm2(vTexCoord*10.0 + 5.0));
     vec3  finalColor = mix(baseColor, vec3(0.30, 0.32, 0.22), mossMask * 0.55);
 
-    float ambient = 0.25;
-    float diffuse = max(dot(N, normalize(vec3(1.0, 1.5, 0.8))), 0.0);
-    gl_FragColor  = vec4(finalColor * (ambient + diffuse * 0.75), 1.0);
+    float ambient = 0.45;
+    float diffuse = max(dot(N, normalize(-uLightDir)), 0.0);
+    gl_FragColor  = vec4(finalColor * (ambient + diffuse * 0.45), 1.0);
 }

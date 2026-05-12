@@ -59,6 +59,11 @@ export class MyScene extends CGFscene {
     this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
 
     this.rebuildGrass();
+    this.rocks = [];
+    this.numRocks = 8;
+    this.rockSpawnSeed  = 27.1;
+    this.rebuildRocks();
+
 
     //Initialize Materials and lights
     this.initSunMaterial();
@@ -118,11 +123,7 @@ export class MyScene extends CGFscene {
     this._accumulatedTime = 0;
     this.setUpdatePeriod(16);
 
-    this.rockSeed      = 0.0;
-    this.rockRoughness = 0.18;
-    this.rockScale     = 0.5;
-    this.rockTexBlend  = 0.0;
-    this.displayRock   = false;
+    this.displayRock   = true;
     this.rock = new MyRock(
     this, this.rockSeed, 32, 24, this.rockRoughness,'textures/white_rock_texture.jpg','textures/black_rock_texture.jpg');
   }
@@ -344,15 +345,54 @@ export class MyScene extends CGFscene {
     }
 }
 
+makeRng(seed) {
+    let s = (seed * 9301 + 1) >>> 0 || 1;
+    return () => {
+        s += 0x6D2B79F5;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+rebuildRocks() {
+    this.rocks = [];
+    const rng = this.makeRng(Math.round(this.rockSpawnSeed * 1000));
+
+    for (let i = 0; i < this.numRocks; i++) {
+        const wx = (rng() - 0.5) * (this.groundScale - 4.0);
+        const wz = (rng() - 0.5) * (this.groundScale - 4.0);
+
+        if (this.isOnPath(wx, wz)) continue;
+
+        const rock = new MyRock(
+            this, rng() * 100.0, 8, 12,
+            0.1 + rng() * 0.2,                          // roughness [0.2, 0.4]
+            'textures/white_rock_texture.jpg',
+            'textures/black_rock_texture.jpg'
+        );
+
+        this.rocks.push({
+            object:   rock,
+            pos:      [wx, this.terrainHeight(wx, wz), wz],
+            rotY:     rng() * Math.PI * 2,
+            scale:    0.15 + rng() * 0.35,
+            texBlend: 0.5  + rng() * 0.5,
+        });
+    }
+}
+
   rebuildPath() {
     this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
     this.rebuildGrass();
+    this.rebuildRocks();
   }
 
   newRandomPath() {
     this.pathSeed = Math.floor(Math.random() * 1000);
     this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
     this.rebuildGrass();
+    this.rebuildRocks();
   }
 
   saveCurrentPath() {
@@ -372,13 +412,6 @@ export class MyScene extends CGFscene {
     alert(msg);
   }
 
-  rebuildRock() {
-    this.rock = new MyRock(
-        this, this.rockSeed, 16, 24, this.rockRoughness,
-        this.rock.tex0 ? this.rock.tex0.image.src.replace(location.href, '') : null,
-        this.rock.tex1 ? this.rock.tex1.image.src.replace(location.href, '') : null
-    );
-  }
 
   display() {
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
@@ -507,11 +540,18 @@ export class MyScene extends CGFscene {
     this.popMatrix();
 
     if (this.displayRock) {
-      this.pushMatrix();
-      this.scale(this.rockScale, this.rockScale, this.rockScale);
-      this.rock.rockShader.setUniformsValues({ uTexBlend: this.rockTexBlend });
-      this.rock.display();
-      this.popMatrix();
+        for (let r of this.rocks) {
+          this.pushMatrix();
+          this.translate(r.pos[0], r.pos[1], r.pos[2]);
+          this.rotate(r.rotY, 0, 1, 0);          // rotate random aroung Y axis
+          this.rotate(Math.PI, 1, 0, 0);         // flip upside down
+          this.scale(r.scale, r.scale, r.scale);
+          r.object.rockShader.setUniformsValues({
+            uTexBlend: r.texBlend,
+          });
+          r.object.display(); // resets to defaultShader internally
+          this.popMatrix();
+      }
     }
 
     this.setActiveShader(this.windShader);

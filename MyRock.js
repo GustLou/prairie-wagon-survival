@@ -1,7 +1,7 @@
 import { CGFobject, CGFappearance, CGFshader, CGFtexture } from '../lib/CGF.js';
 
 export class MyRock extends CGFobject {
-    constructor(scene, seed = 0.0, stacks = 32, slices = 24, roughness = 0.18,
+    constructor(scene, seed = 0.0, stacks = 16, slices = 12, roughness = 0.18,
                 texturePath0 = null, texturePath1 = null) {
         super(scene);
         this.seed      = seed;
@@ -57,11 +57,12 @@ export class MyRock extends CGFobject {
             'shaders/rock.frag'
         );
         this.rockShader.setUniformsValues({
-            uSeed:      this.seed,
-            uRoughness: this.roughness,
-            uTexBlend:  0.0,
-            uSampler0:  0,
-            uSampler1:  1,
+            uSeed:        this.seed,
+            uRoughness:   this.roughness,
+            uTexBlend:    0.0,
+            uSampler0:    0,
+            uSampler1:    1,
+            uLightDir:    [0.0, 0.8, 0.5]
         });
     }
 
