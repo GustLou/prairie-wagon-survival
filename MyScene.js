@@ -43,6 +43,7 @@ export class MyScene extends CGFscene {
     this.ground = new MyPlane(this, 50);
     this.groundScale = 25;
     this.pathWidth = 0.03;
+    this.uHeightScale = 0.03;
 
     this.numPatches = 25; // number of patches center
     this.bladesPerPatch = 15; // density of each grass patch
@@ -208,7 +209,7 @@ export class MyScene extends CGFscene {
   terrainHeight(wx, wz) {
     const lx =  (wx / this.groundScale) * 1.5;
     const ly = -(wz / this.groundScale) * 1.5; // local Y = -world Z (due to -90° X rotation)
-    return this._fbm(lx, ly) * 0.13 * this.groundScale;
+    return this._fbm(lx, ly) * this.uHeightScale * this.groundScale;
   }
 
   initShader() {
@@ -458,7 +459,7 @@ export class MyScene extends CGFscene {
         uHeightMap: 1,
         uDirtMap: 2,
         uPathMap: 3,
-        uHeightScale: 0.03,
+        uHeightScale: this.uHeightScale,
         uAmbient: 0.6,
         uLightDir: [0.0, 0.8, 0.5],
         uPathWidth: this.pathWidth,
