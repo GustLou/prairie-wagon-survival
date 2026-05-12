@@ -10,6 +10,7 @@ import { SkyBox } from "./SkyBox.js";
 import { MyCloudSphere } from "./MyCloudSphere.js";
 import { MyPlane } from "./MyPlane.js";
 import { MyRock } from "./MyRock.js";
+import { MyGrass } from "./MyGrass.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -17,6 +18,25 @@ export class MyScene extends CGFscene {
   }
   init(application) {
     super.init(application);
+
+    this.grassBlades = []; // list of grass blades
+    this.numGrass = 50;
+
+    // Procedural generation of grass blades
+  for (let i = 0; i < this.numGrass; i++) {
+    // Vary levels and height for "natural randomness"
+    let levels = Math.floor(Math.random() * 2) + 1; 
+    let blade = new MyGrass(this, levels, 0.1, 0.5 + Math.random() * 0.5);
+    
+    // Store random transforms for each blade
+    this.grassBlades.push({
+        object: blade,
+        // Spread across the groundScale (25)
+        pos: [ (Math.random() - 0.5) * 45, 0, (Math.random() - 0.5) * 45 ],
+        rot: Math.random() * Math.PI * 2,
+        scale: 0.8 + Math.random() * 0.4
+    });
+  }
 
     this.sunPosition = { x: 12, y: 8, z: -6 };
     this.sunScale = 0.3;
@@ -119,6 +139,8 @@ export class MyScene extends CGFscene {
   update(t) {
     this._accumulatedTime += t;
     this._cloudTime = (this._accumulatedTime / 10e11) * this.cloudSpeed;
+
+    this.windShader.setUniformsValues({ uTime: this._accumulatedTime / 3000.0 });
   }
 
   initShader() {
@@ -128,6 +150,13 @@ export class MyScene extends CGFscene {
       "shaders/sun.frag",
     );
     this.sunShader.setUniformsValues({ uSampler: 0 });
+
+    this.windShader = new CGFshader(
+      this.gl,
+      "shaders/wind.vert",
+      "shaders/wind.frag",
+    );
+    this.windShader.setUniformsValues({ uTime: 0.0, uSampler: 0 });
   }
 
   updateSunShaderUniforms() {
@@ -408,6 +437,26 @@ export class MyScene extends CGFscene {
       this.rock.display();
       this.popMatrix();
     }
+
+    this.setActiveShader(this.windShader);
+
+    // Example wind parameters
+    this.windShader.setUniformsValues({ 
+        uWindStrength: 0.2,
+        uWindSpeed: 1.5 
+    });
+
+    for (let i = 0; i < this.grassBlades.length; i++) {
+    let g = this.grassBlades[i];
+    
+    this.pushMatrix();
+    this.translate(g.pos[0], g.pos[1], g.pos[2]);
+    this.rotate(g.rot, 0, 1, 0);
+    this.scale(g.scale, g.scale, g.scale);
+    
+    g.object.display();
+    this.popMatrix();
+}
     // ---- END Primitive drawing section
   }
 }
