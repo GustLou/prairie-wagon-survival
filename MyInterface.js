@@ -18,8 +18,10 @@ export class MyInterface extends CGFinterface {
     this.gui = new dat.GUI();
 
     const actions = {
-      generatePath: () => { this.scene.newRandomPath(); this.scene.generateTrees(); seedCtrl.updateDisplay();},
+      generatePath: () => { this.scene.newRandomPath(); seedCtrl.updateDisplay();},
       generateTree: () => this.scene.generateTrees(),
+      generateRocks: () => this.scene.generateRocks(),
+      generateGrass: () => this.scene.rebuildGrass(),
       save:         () => this.scene.saveCurrentPath(),
       print:        () => this.scene.printSavedPath(),
     };
@@ -89,6 +91,8 @@ export class MyInterface extends CGFinterface {
                .onFinishChange(() => this.scene.rebuildGrass());
     grassFolder.add(this.scene, 'bladesPerPatch', 1, 40, 1).name('Blades per Patch')
                .onFinishChange(() => this.scene.rebuildGrass());
+    grassFolder.add(this.scene, 'grassMinDistanceToPath').name('Min Distance to Path');
+    grassFolder.add(actions, 'generateGrass').name('Generate Layout');
     grassFolder.open();
 
     const rockFolder = this.gui.addFolder('Rock');
@@ -97,6 +101,8 @@ export class MyInterface extends CGFinterface {
           .onFinishChange(() => this.scene.rebuildRocks());
     rockFolder.add(this.scene, 'rockSpawnSeed', 0,  100,  0.1).name('Spawn Seed')
           .onFinishChange(() => this.scene.rebuildRocks());
+    rockFolder.add(this.scene, 'rockMinDistanceToPath').name('Min Distance to Path');
+    rockFolder.add(actions, 'generateRocks').name('Generate Layout');
     rockFolder.open();
     return true;
     }

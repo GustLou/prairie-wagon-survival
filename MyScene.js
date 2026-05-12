@@ -11,7 +11,6 @@ import { MyCloudSphere } from "./MyCloudSphere.js";
 import { MyPlane } from "./MyPlane.js";
 import { MyRock } from "./MyRock.js";
 import { MyGrass } from "./MyGrass.js";
-// import { Tree } from "./tree/Tree.js"
 import { MyLSPlant } from "./tree/MyLSPlant.js";
 
 export class MyScene extends CGFscene {
@@ -43,7 +42,7 @@ export class MyScene extends CGFscene {
     this.ground = new MyPlane(this, 50);
     this.groundScale = 25;
     this.pathWidth = 0.03;
-    this.uHeightScale = 0.03;
+    this.uHeightScale = 0.13;
 
     this.numPatches = 25; // number of patches center
     this.bladesPerPatch = 15; // density of each grass patch
@@ -68,12 +67,16 @@ export class MyScene extends CGFscene {
     this.rocks = [];
     this.numRocks = 8;
     this.rockSpawnSeed  = 27.1;
+    this.rockScale = 0.25;
+    this.rockTexBlend = 0.5;
+    this.rockMinDistanceToPath = 0.075;
     this.rebuildRocks();
 
     // tree contols
     this.tree = new MyLSPlant(this);
     this.treeMinDistanceToPath = 0.03;
     this.treeDensity = 0.1; // amount of trees per unit squared
+    this.grassMinDistanceToPath = 0.03;
 
     //Initialize Materials and lights
     this.initSunMaterial();
@@ -140,6 +143,7 @@ export class MyScene extends CGFscene {
     this, this.rockSeed, 32, 24, this.rockRoughness,'textures/white_rock_texture.jpg','textures/black_rock_texture.jpg');
 
     this.generateTrees();
+    this.generateRocks();
   }
 
   // Shortest distance from point (px, pz) to segment (x1, z1) -> (x2, z2)
@@ -395,7 +399,7 @@ makeRng(seed) {
     };
 }
 
-rebuildRocks() {
+  rebuildRocks() {
     this.rocks = [];
     const rng = this.makeRng(Math.round(this.rockSpawnSeed * 1000));
 
@@ -433,6 +437,7 @@ rebuildRocks() {
     this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
     this.rebuildGrass();
     this.rebuildRocks();
+    this.scene.generateTrees();
   }
 
   saveCurrentPath() {
@@ -578,18 +583,33 @@ rebuildRocks() {
     this.setActiveShader(this.defaultShader);
     this.popMatrix();
 
-    if (this.displayRock) {
-        for (let r of this.rocks) {
-          this.pushMatrix();
-          this.translate(r.pos[0], r.pos[1], r.pos[2]);
-          this.rotate(r.rotY, 0, 1, 0);          // rotate random aroung Y axis
-          this.rotate(Math.PI, 1, 0, 0);         // flip upside down
-          this.scale(r.scale, r.scale, r.scale);
-          r.object.rockShader.setUniformsValues({
-            uTexBlend: r.texBlend,
-          });
-          r.object.display(); // resets to defaultShader internally
-          this.popMatrix();
+    if (this.displayRock && this.rockPositions) {
+      // Set the uniform once for all rocks
+      this.rock.rockShader.setUniformsValues({ uTexBlend: this.rockTexBlend });
+
+      for (let i = 0; i < this.rockPositions.length; i++) {
+        let pos = this.rockPositions[i];
+
+        // 1. Calculate dynamic world positions based on current ground scale
+        let wx = pos.normX * this.groundScale;
+        let wz = pos.normZ * this.groundScale;
+        
+        // 2. Fetch the terrain height so the rock sits on the ground
+        let wy = this.terrainHeight(wx, wz);
+
+        this.pushMatrix();
+        
+        this.translate(wx, wy, wz); // Move rock to its spot on the terrain
+        
+        // Apply random rotations so rocks don't all look identical
+        this.rotate(pos.rotY, 0, 1, 0); 
+        this.rotate(pos.rotX, 1, 0, 0);
+        this.rotate(pos.rotZ, 0, 0, 1);
+        
+        this.scale(pos.scale, pos.scale, pos.scale);
+        
+        this.rock.display();
+        this.popMatrix();
       }
     }
 
@@ -605,13 +625,13 @@ rebuildRocks() {
       for (let i = 0; i < this.grassBlades.length; i++) {
         let g = this.grassBlades[i];
   
-      // 1. Calculate the real world position dynamically 
-      let wx = (g.normCenterX * (this.groundScale - 4.0)) + g.offsetX;
-      let wz = (g.normCenterZ * (this.groundScale - 4.0)) + g.offsetZ;
-      
-      // 2. Fetch the terrain height at the new scaled position
-      let wy = this.terrainHeight(wx, wz);
-
+        // 1. Calculate the real world position dynamically 
+        let wx = (g.normCenterX * (this.groundScale - 4.0)) + g.offsetX;
+        let wz = (g.normCenterZ * (this.groundScale - 4.0)) + g.offsetZ;
+        
+        // 2. Fetch the terrain height at the new scaled position
+        let wy = this.terrainHeight(wx, wz);
+  
         this.windShader.setUniformsValues({
             uHealth: g.object.health,
             uBladeWorldPos: [wx, wz]
@@ -639,8 +659,8 @@ rebuildRocks() {
         let pos = this.treePositions[i];
 
         const finalX = pos.x * this.groundScale + pos.randomOffset;
-        const finalY = pos.y; // final Y position to be determined
         const finalZ = pos.z * this.groundScale + pos.randomOffset;
+        const finalY = this.terrainHeight(finalX, finalZ);
         
         this.pushMatrix();
 
@@ -667,10 +687,9 @@ rebuildRocks() {
       let randomX = (Math.random() - 0.5);
       let randomZ = (Math.random() - 0.5);
       
-      if (this.checkTreeOutsideAllEdges({ x: randomX, z: randomZ })) {
+      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ })) {
         this.treePositions.push({
           x: randomX,
-          y: 0,
           z: randomZ,
           randomOffset: 0,
           scale: this.treeScaleFactor * (0.6 + Math.random() * 0.8),
@@ -686,16 +705,57 @@ rebuildRocks() {
       }
     }
   }
+
+  generateRocks() {
+    this.rockPositions = [];
+    let failedAttempts = 0;
+
+    for (let i = 0; i < this.numRocks; i++) {
+      let normX = (Math.random() - 0.5);
+      let normZ = (Math.random() - 0.5);
+      
+      // Reuse the tree path avoidance logic since the coordinate system is identical
+      if (this.checkRockOutsideAllEdges({ x: normX, z: normZ })) {
+        this.rockPositions.push({
+          normX: normX,
+          normZ: normZ,
+          scale: this.rockScale * (0.5 + Math.random() * 1.0), // Randomize size a bit
+          rotX: Math.random() * Math.PI * 2, // Rocks look better with random 3D rotations
+          rotY: Math.random() * Math.PI * 2,
+          rotZ: Math.random() * Math.PI * 2
+        });
+      } else if (failedAttempts < this.numRocks * 2) {
+        // If we hit the path, try again
+        failedAttempts++;
+        i--;
+      } else {
+        break; // Stop if the map is too crowded
+      }
+    }
+  }
+
   checkTreeOutsideAllEdges(tree) {
+    return this.checkOutsideAllEdges(tree, this.treeMinDistanceToPath);
+  }
+  
+  checkGrassOutsideAllEdges(tree) {
+    return this.checkOutsideAllEdges(tree, this.grassMinDistanceToPath);
+  }
+  
+  checkRockOutsideAllEdges(tree) {
+    return this.checkOutsideAllEdges(tree, this.rockMinDistanceToPath);
+  }
+
+  checkOutsideAllEdges(obj, tolerance = 0.05) {
     for (const edge of this.edges) {
-      if (!this.checkTreeOutsideEdge(tree, edge)) {
+      if (!this.checkOutsideEdge(obj, edge, tolerance)) {
         return false;
       }
     }
     return true;
   }
 
-  checkTreeOutsideEdge(tree, edge) {
+  checkOutsideEdge(tree, edge, tolerance = 0.05) {
     const [start, end] = edge;
 
     // Edges are in [0, 1] space, but the 'tree' object is in [-0.5, 0.5] space.
@@ -711,7 +771,7 @@ rebuildRocks() {
     // Handle the edge case of a zero-length path segment
     if (l2 === 0) {
       const dist = Math.sqrt(Math.pow(tx - start[0], 2) + Math.pow(tz - start[1], 2));
-      return dist > (this.pathWidth + this.treeMinDistanceToPath);
+      return dist > (this.pathWidth + tolerance);
     }
 
     // 't' is the projection of the tree onto the infinite line, 
@@ -724,6 +784,6 @@ rebuildRocks() {
 
     const distance = Math.sqrt(Math.pow(tx - closestX, 2) + Math.pow(tz - closestZ, 2));
 
-    return distance > (this.pathWidth + this.treeMinDistanceToPath);
+    return distance > (this.pathWidth + tolerance);
   }
 }
