@@ -44,35 +44,6 @@ export class MyScene extends CGFscene {
     this.numPatches = 25; // number of patches center
     this.bladesPerPatch = 15; // density of each grass patch
 
-    for(let p = 0; p < this.numPatches; p++){
-      // define the center of the patch and its general health
-      let centerX = (Math.random() - 0.5) * (this.groundScale - 4.0);
-      let centerZ = (Math.random() - 0.5) * (this.groundScale - 4.0);
-      let patchHealth = Math.random();
-
-      for(let b = 0; b < this.bladesPerPatch; b++){
-        // natural circle 
-        let angle = Math.random() * Math.PI * 2;
-        let radius = 2.0 * Math.sqrt(Math.random());
-
-        let wx = centerX + radius * Math.cos(angle);
-        let wz = centerZ + radius * Math.sin(angle);
-
-        // create the blade and inherit patch health with slight changes
-        let levels = Math.floor(Math.random() * 2) + 2;
-        let blade = new MyGrass(this,levels,0.1,0.3 + Math.random() * 0.3);
-
-        blade.health = Math.max(0,Math.min(1,patchHealth + (Math.random()-0.5) * 0.2));
-
-        this.grassBlades.push({
-            object: blade,
-            pos: [ wx, this.terrainHeight(wx, wz), wz ], // Correct height for rolling hills
-            rot: Math.random() * Math.PI * 2,
-            scale: 0.8 + Math.random() * 0.4
-        });
-      }
-    }
-
     this.pathNumPoints = 12;
     this.pathSeed = 0;
 
@@ -84,7 +55,10 @@ export class MyScene extends CGFscene {
       this.pathWidth     = savedPath.width ?? 0.03;
     }
 
+    // Path edges must exist before grass is generated so isOnPath works
     this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+
+    this.rebuildGrass();
 
     //Initialize Materials and lights
     this.initSunMaterial();
@@ -152,6 +126,34 @@ export class MyScene extends CGFscene {
     this.rock = new MyRock(
     this, this.rockSeed, 32, 24, this.rockRoughness,'textures/white_rock_texture.jpg','textures/black_rock_texture.jpg');
   }
+
+  // Shortest distance from point (px, pz) to segment (x1, z1) -> (x2, z2)
+  _distToSegment(px, pz, x1, z1, x2, z2) {
+      const l2 = (x2 - x1) ** 2 + (z2 - z1) ** 2;
+      if (l2 === 0) return Math.sqrt((px - x1) ** 2 + (pz - z1) ** 2);
+      let t = ((px - x1) * (x2 - x1) + (pz - z1) * (z2 - z1)) / l2;
+      t = Math.max(0, Math.min(1, t));
+      return Math.sqrt((px - (x1 + t * (x2 - x1))) ** 2 + (pz - (z1 + t * (z2 - z1))) ** 2);
+  }
+
+  isOnPath(wx, wz) {
+    // Map world coordinates [-12.5, 12.5] to UV space [0, 1]
+    const u = (wx / this.groundScale) + 0.5;
+    const v = (wz / this.groundScale) + 0.5;
+    
+    const edges = this.ground.pathEdges;
+    const threshold = this.pathWidth * 1.5; // Added 1.5x buffer for a cleaner "mowed" edge
+
+    for (let i = 0; i < this.ground.numEdges * 4; i += 4) {
+        const x1 = edges[i];   const y1 = edges[i+1];
+        const x2 = edges[i+2]; const y2 = edges[i+3];
+
+        if (this._distToSegment(u, v, x1, y1, x2, y2) < threshold) {
+            return true;
+        }
+    }
+    return false;
+}
 
   update(t) {
     this._accumulatedTime += t;
@@ -326,6 +328,8 @@ export class MyScene extends CGFscene {
             let wx = centerX + radius * Math.cos(angle);
             let wz = centerZ + radius * Math.sin(angle);
 
+            if (this.isOnPath(wx, wz)) continue;
+
             let levels = Math.floor(Math.random() * 2) + 2;
             let blade = new MyGrass(this, levels, 0.1, 0.2 + Math.random() * 0.3);
             blade.health = Math.max(0, Math.min(1, patchHealth + (Math.random() - 0.5) * 0.2));
@@ -342,11 +346,13 @@ export class MyScene extends CGFscene {
 
   rebuildPath() {
     this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    this.rebuildGrass();
   }
 
   newRandomPath() {
     this.pathSeed = Math.floor(Math.random() * 1000);
     this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    this.rebuildGrass();
   }
 
   saveCurrentPath() {
