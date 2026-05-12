@@ -20,23 +20,7 @@ export class MyScene extends CGFscene {
     super.init(application);
 
     this.grassBlades = []; // list of grass blades
-    this.numGrass = 250;
-
-    // Procedural generation of grass blades
-  for (let i = 0; i < this.numGrass; i++) {
-    // Vary levels and height for "natural randomness"
-    let levels = Math.floor(Math.random() * 2) + 1; 
-    let blade = new MyGrass(this, levels, 0.1, 0.5 + Math.random() * 0.5);
-    
-    // Store random transforms for each blade
-    this.grassBlades.push({
-        object: blade,
-        // Spread across the groundScale (25)
-        pos: [ (Math.random() - 0.5) * 45, 0, (Math.random() - 0.5) * 45 ],
-        rot: Math.random() * Math.PI * 2,
-        scale: 0.8 + Math.random() * 0.4
-    });
-  }
+    this.numGrass = 200;
 
     this.sunPosition = { x: 12, y: 8, z: -6 };
     this.sunScale = 0.3;
@@ -56,6 +40,20 @@ export class MyScene extends CGFscene {
     this.ground = new MyPlane(this, 50);
     this.groundScale = 25;
     this.pathWidth = 0.03;
+
+    // Grass generation — must happen after groundScale is set so terrainHeight works
+    for (let i = 0; i < this.numGrass; i++) {
+      let levels = Math.floor(Math.random() * 2) + 1;
+      let blade = new MyGrass(this, levels, 0.1, 0.2 + Math.random() * 0.2);
+      let wx = (Math.random() - 0.5) * 24;
+      let wz = (Math.random() - 0.5) * 24;
+      this.grassBlades.push({
+        object: blade,
+        pos: [ wx, this.terrainHeight(wx, wz), wz ],
+        rot: Math.random() * Math.PI * 2,
+        scale: 0.8 + Math.random() * 0.4
+      });
+    }
     this.pathNumPoints = 12;
     this.pathSeed = 0;
 
@@ -140,7 +138,45 @@ export class MyScene extends CGFscene {
     this._accumulatedTime += t;
     this._cloudTime = (this._accumulatedTime / 10e11) * this.cloudSpeed;
 
-    this.windShader.setUniformsValues({ uTime: this._accumulatedTime / 3000.0 });
+    this.windShader.setUniformsValues({ uTime: this._accumulatedTime / 1500.0 });
+  }
+
+  // CPU replicas of terrain.vert noise/fbm — used to place grass at correct height
+  // we are simply replicating what was done in the vert shader to sync the poisition of the objects with the ground
+  _random(x, y) {
+    const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453123;
+    return s - Math.floor(s);
+  }
+
+  _noise(x, y) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const fx = x - ix,        fy = y - iy;
+    const a = this._random(ix,     iy);
+    const b = this._random(ix + 1, iy);
+    const c = this._random(ix,     iy + 1);
+    const d = this._random(ix + 1, iy + 1);
+    // Quintic interpolation — matches terrain.vert
+    const ux = fx*fx*fx*(fx*(fx*6 - 15) + 10);
+    const uy = fy*fy*fy*(fy*(fy*6 - 15) + 10);
+    return a + (b-a)*ux + (c-a)*uy*(1-ux) + (d-b)*ux*uy;
+  }
+
+  _fbm(x, y) {
+    let v = 0, amp = 0.5, freq = 1;
+    for (let i = 0; i < 3; i++) {
+      v += amp * this._noise(x * freq, y * freq);
+      amp *= 0.5; freq *= 2;
+    }
+    return v;
+  }
+
+  // Returns the world-space Y height of the terrain at world position (wx, wz).
+  // Mirrors: float h = fbm(aVertexPosition.xy * 1.5); displaced.z += h * uHeightScale;
+  // then scaled by groundScale via the model matrix.
+  terrainHeight(wx, wz) {
+    const lx =  (wx / this.groundScale) * 1.5;
+    const ly = -(wz / this.groundScale) * 1.5; // local Y = -world Z (due to -90° X rotation)
+    return this._fbm(lx, ly) * 0.13 * this.groundScale;
   }
 
   initShader() {
@@ -269,6 +305,22 @@ export class MyScene extends CGFscene {
   //   // Send the values to the fragment shader
   //   this.skyShader.setUniformsValues({ uSunPosition: [sunX, sunY, sunZ] });
   // }
+
+  rebuildGrass() {
+    this.grassBlades = [];
+    for (let i = 0; i < this.numGrass; i++) {
+      let levels = Math.floor(Math.random() * 2) + 1;
+      let blade = new MyGrass(this, levels, 0.1, 0.2 + Math.random() * 0.2);
+      let wx = (Math.random() - 0.5) * 24;
+      let wz = (Math.random() - 0.5) * 24;
+      this.grassBlades.push({
+        object: blade,
+        pos: [wx, this.terrainHeight(wx, wz), wz],
+        rot: Math.random() * Math.PI * 2,
+        scale: 0.8 + Math.random() * 0.4
+      });
+    }
+  }
 
   rebuildPath() {
     this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
@@ -449,8 +501,9 @@ export class MyScene extends CGFscene {
     for (let i = 0; i < this.grassBlades.length; i++) {
     let g = this.grassBlades[i];
 
-    this.windShader.setUniformsValues({ 
-        uHealth: g.object.health 
+    this.windShader.setUniformsValues({
+        uHealth: g.object.health,
+        uBladeWorldPos: [g.pos[0], g.pos[2]]
     });
     
     this.pushMatrix();

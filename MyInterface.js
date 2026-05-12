@@ -70,6 +70,11 @@ export class MyInterface extends CGFinterface {
     pathFolder.add(actions, "print").name("Print Saved Path");
     pathFolder.open();
 
+    const grassFolder = this.gui.addFolder('Grass');
+    grassFolder.add(this.scene, 'numGrass', 0, 500, 1).name('Blade Count')
+               .onFinishChange(() => this.scene.rebuildGrass());
+    grassFolder.open();
+
     const rockFolder = this.gui.addFolder('Rock');
     rockFolder.add(this.scene, 'displayRock').name('Display');
     rockFolder.add(this.scene, 'rockScale',     0.1, 5.0 ).name('Scale');
