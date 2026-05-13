@@ -125,8 +125,10 @@ export class MyScene extends CGFscene {
 
     this.displayAxis    = false;
     this.displaySphere    = false;
+    this.displaySun    = false;
     this.displayClouds    = false;
     this.displayGround = true;
+    this.displayTree  = true;
     this.pathWidth = 0.03;
     this.scaleFactor    = 25;
     this.treeScaleFactor  = 0.5;
@@ -573,15 +575,17 @@ makeRng(seed) {
     }
     this.popMatrix();
 
-    this.pushMatrix();
-    this.translate(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z);
-    this.scale(this.sunScale, this.sunScale, this.sunScale);
-    this.sunMaterial.apply();
-    this.setActiveShader(this.sunShader); // use sun glow shader
-    this.updateSunShaderUniforms();
-    this.sunSphere.display();
-    this.setActiveShader(this.defaultShader);
-    this.popMatrix();
+    if (this.displaySun && this.sunPosition) {
+      this.pushMatrix();
+      this.translate(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z);
+      this.scale(this.sunScale, this.sunScale, this.sunScale);
+      this.sunMaterial.apply();
+      this.setActiveShader(this.sunShader); // use sun glow shader
+      this.updateSunShaderUniforms();
+      this.sunSphere.display();
+      this.setActiveShader(this.defaultShader);
+      this.popMatrix();
+    }
 
     if (this.displayRock && this.rockPositions) {
       // Set the uniform once for all rocks
@@ -654,7 +658,7 @@ makeRng(seed) {
     this.setEmission(0.0, 0.0, 0.0, 1.0);
     this.setShininess(10.0);
 
-    if (this.treePositions) {
+    if (this.displayTree && this.treePositions) {
       for (let i = 0; i < this.treePositions.length; i++) {
         let pos = this.treePositions[i];
 
