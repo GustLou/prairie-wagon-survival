@@ -11,7 +11,8 @@ import { MyCloudSphere } from "./MyCloudSphere.js";
 import { MyPlane } from "./MyPlane.js";
 import { MyRock } from "./MyRock.js";
 import { MyGrass } from "./MyGrass.js";
-import { MyLSPlant } from "./tree/MyLSPlant.js";
+import { MyLSTree } from "./tree/MyLSTree.js";
+import { MyLSFlower } from "./tree/MyLSFlower.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -46,6 +47,7 @@ export class MyScene extends CGFscene {
 
     this.numPatches = 25; // number of patches center
     this.bladesPerPatch = 15; // density of each grass patch
+    this.grassScaleFactor = 1.0;
 
     this.pathNumPoints = 12;
     this.pathSeed = 0;
@@ -67,14 +69,14 @@ export class MyScene extends CGFscene {
     this.rocks = [];
     this.numRocks = 8;
     this.rockSpawnSeed  = 27.1;
-    this.rockScale = 0.25;
+    this.rockScaleFactor = 0.25;
     this.rockTexBlend = 0.5;
     this.rockMinDistanceToPath = 0.075;
-    this.rebuildRocks();
 
     // tree contols
-    this.tree = new MyLSPlant(this);
     this.treeMinDistanceToPath = 0.03;
+    this.flowerMinDistanceToPath = 0.03;
+    this.flowerDensity = 0.1; // amount of flwoers per unit squared
     this.treeDensity = 0.1; // amount of trees per unit squared
     this.grassMinDistanceToPath = 0.03;
 
@@ -122,30 +124,62 @@ export class MyScene extends CGFscene {
       uDensity: 0.62,
       uScale: 12.4,
     });
+    
+    // change this variable to start with everything displayed or not by default
+    // TODO: remove this debug logic before final submission
+    this.displayAll      = false;
+    this.displayAxis      = this.displayAll;
+    this.displaySky       = this.displayAll;
+    this.displaySun       = this.displayAll;
+    this.displayClouds    = this.displayAll;
+    this.displayGround    = this.displayAll;
+    this.displayTree      = this.displayAll;
+    this.displayFlower    = this.displayAll;
+    this.displayGrass     = this.displayAll;
+    this.displayRock      = this.displayAll;
 
-    this.displayAxis    = false;
-    this.displaySphere    = false;
-    this.displaySun    = false;
-    this.displayClouds    = false;
-    this.displayGround = true;
-    this.displayTree  = true;
     this.pathWidth = 0.03;
-    this.scaleFactor    = 25;
-    this.treeScaleFactor  = 0.5;
-    this.cloudSpeed       = 0.001;
-    this.cloudDensity    = 0.62;
-    this.cloudScale    = 6.0;
-    this._cloudTime    = 0.0;
-    this._accumulatedTime = 0;
+
+    this.globalScaleFactor = 1;
+    this.skyScaleFactor    = 25;
+    this.treeScaleFactor   = 0.5;
+    this.flowerScaleFactor = 0.5;
+
+    this.cloudSpeed        = 0.001;
+    this.cloudDensity      = 0.62;
+    this.cloudSize        = 6.0; // as in how small the clouds are, the half-sphere radius is defined with skyScaleFactor
+    this._cloudTime        = 0.0;
+    this._accumulatedTime  = 0;
     this.setUpdatePeriod(16);
 
-    this.displayGrass  = true;
-    this.displayRock   = true;
     this.rock = new MyRock(
-    this, this.rockSeed, 32, 24, this.rockRoughness,'textures/white_rock_texture.jpg','textures/black_rock_texture.jpg');
+      this,
+      this.rockSeed,
+      8,
+      6,
+      0.08,
+      'textures/white_rock_texture.jpg',
+      'textures/black_rock_texture.jpg',
+    );
 
     this.generateTrees();
+    this.generateFlowers();
     this.generateRocks();
+  }
+
+  toggleDisplayAll() {
+    const newValue = !this.displayAll;
+
+    this.displayAll       = newValue;
+    this.displayAxis      = newValue;
+    this.displaySky       = newValue;
+    this.displaySun       = newValue;
+    this.displayClouds    = newValue;
+    this.displayGround    = newValue;
+    this.displayTree      = newValue;
+    this.displayFlower    = newValue;
+    this.displayGrass     = newValue;
+    this.displayRock      = newValue;
   }
 
   // Shortest distance from point (px, pz) to segment (x1, z1) -> (x2, z2)
@@ -339,19 +373,6 @@ export class MyScene extends CGFscene {
     this.angle = 30.0;
     this.iterations = 5;
     this.treeScaleFactor= 0.5;
-    this.button = function(){
-        this.tree.init();
-    }
-  }
-
-  initTrees() {
-    this.axiom = "X";
-    this.angle = 30.0;
-    this.iterations = 5;
-    this.treeScaleFactor= 0.5;
-    this.button = function(){
-        this.tree.init();
-    }
   }
 
   rebuildGrass() {
@@ -375,7 +396,7 @@ export class MyScene extends CGFscene {
             if (this.isOnPath(tempWx, tempWz)) continue;
 
             let levels = Math.floor(Math.random() * 2) + 2;
-            let blade = new MyGrass(this, levels, 0.1, 0.2 + Math.random() * 0.3);
+            let blade = new MyGrass(this, levels, 0.1, 0.1 + Math.random() * 0.2);
             blade.health = Math.max(0, Math.min(1, patchHealth + (Math.random() - 0.5) * 0.2));
 
             this.grassBlades.push({
@@ -401,44 +422,15 @@ makeRng(seed) {
     };
 }
 
-  rebuildRocks() {
-    this.rocks = [];
-    const rng = this.makeRng(Math.round(this.rockSpawnSeed * 1000));
-
-    for (let i = 0; i < this.numRocks; i++) {
-        const wx = (rng() - 0.5) * (this.groundScale - 4.0);
-        const wz = (rng() - 0.5) * (this.groundScale - 4.0);
-
-        if (this.isOnPath(wx, wz)) continue;
-
-        const rock = new MyRock(
-            this, rng() * 100.0, 8, 12,
-            0.1 + rng() * 0.2,                          // roughness [0.2, 0.4]
-            'textures/white_rock_texture.jpg',
-            'textures/black_rock_texture.jpg'
-        );
-
-        this.rocks.push({
-            object:   rock,
-            pos:      [wx, this.terrainHeight(wx, wz), wz],
-            rotY:     rng() * Math.PI * 2,
-            scale:    0.15 + rng() * 0.35,
-            texBlend: 0.5  + rng() * 0.5,
-        });
-    }
-  }
-
   rebuildPath() {
     this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
     this.rebuildGrass();
-    this.rebuildRocks();
   }
 
   newRandomPath() {
     this.pathSeed = Math.floor(Math.random() * 1000);
     this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
     this.rebuildGrass();
-    this.rebuildRocks();
     this.scene.generateTrees();
   }
 
@@ -469,70 +461,20 @@ makeRng(seed) {
     this.syncSunLight();
 
     if (this.displayAxis) this.axis.display();
-    if (this.displayGround) {
-      this.pushMatrix();
-      this.rotate(-Math.PI / 2, 1, 0, 0);
-      this.scale(this.groundScale, this.groundScale, this.groundScale);
 
-      this.groundColorTexture.bind(0);
-      this.gl.texParameteri(
-        this.gl.TEXTURE_2D,
-        this.gl.TEXTURE_WRAP_S,
-        this.gl.REPEAT,
-      );
-      this.gl.texParameteri(
-        this.gl.TEXTURE_2D,
-        this.gl.TEXTURE_WRAP_T,
-        this.gl.REPEAT,
-      );
-      this.groundHeightTexture.bind(1);
-      this.groundDirtTexture.bind(2);
-      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
-      this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
-      this.groundPathTexture.bind(3);
-      this.gl.texParameteri(
-        this.gl.TEXTURE_2D,
-        this.gl.TEXTURE_WRAP_S,
-        this.gl.REPEAT,
-      );
-      this.gl.texParameteri(
-        this.gl.TEXTURE_2D,
-        this.gl.TEXTURE_WRAP_T,
-        this.gl.REPEAT,
-      );
-
-      this.setActiveShader(this.terrainShader);
-      this.terrainShader.setUniformsValues({
-        uColorMap: 0,
-        uHeightMap: 1,
-        uDirtMap: 2,
-        uPathMap: 3,
-        uHeightScale: this.uHeightScale,
-        uAmbient: 0.6,
-        uLightDir: [0.0, 0.8, 0.5],
-        uPathWidth: this.pathWidth,
-      });
-      // Pass MST edges
-      const prog = this.terrainShader.program;
-      this.gl.uniform4fv(this.gl.getUniformLocation(prog, 'uPathEdges'), this.ground.pathEdges);
-      this.gl.uniform1i(this.gl.getUniformLocation(prog, 'uNumEdges'), this.ground.numEdges);
-      this.ground.display();
-      this.setActiveShader(this.defaultShader);
-      this.popMatrix();
-    }
-
+    // to be applied to everything (must be added manually inside each pushMatrix-popMatrix codeblock)
     var sca = [
-      this.scaleFactor,
+      this.globalScaleFactor,
       0.0,
       0.0,
       0.0,
       0.0,
-      this.scaleFactor,
+      this.globalScaleFactor,
       0.0,
       0.0,
       0.0,
       0.0,
-      this.scaleFactor,
+      this.globalScaleFactor,
       0.0,
       0.0,
       0.0,
@@ -540,50 +482,105 @@ makeRng(seed) {
       1.0,
     ];
 
-    // Draw sphere first so transparent sun can blend against it
+    if (this.displayGround) {
+      this.pushMatrix();
+        this.multMatrix(sca);
+
+        this.rotate(-Math.PI / 2, 1, 0, 0);
+        this.scale(this.groundScale, this.groundScale, this.groundScale);
+
+        this.groundColorTexture.bind(0);
+        this.gl.texParameteri(
+          this.gl.TEXTURE_2D,
+          this.gl.TEXTURE_WRAP_S,
+          this.gl.REPEAT,
+        );
+        this.gl.texParameteri(
+          this.gl.TEXTURE_2D,
+          this.gl.TEXTURE_WRAP_T,
+          this.gl.REPEAT,
+        );
+        this.groundHeightTexture.bind(1);
+        this.groundDirtTexture.bind(2);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
+        this.groundPathTexture.bind(3);
+        this.gl.texParameteri(
+          this.gl.TEXTURE_2D,
+          this.gl.TEXTURE_WRAP_S,
+          this.gl.REPEAT,
+        );
+        this.gl.texParameteri(
+          this.gl.TEXTURE_2D,
+          this.gl.TEXTURE_WRAP_T,
+          this.gl.REPEAT,
+        );
+
+        this.setActiveShader(this.terrainShader);
+        this.terrainShader.setUniformsValues({
+          uColorMap: 0,
+          uHeightMap: 1,
+          uDirtMap: 2,
+          uPathMap: 3,
+          uHeightScale: this.uHeightScale,
+          uAmbient: 0.6,
+          uLightDir: [0.0, 0.8, 0.5],
+          uPathWidth: this.pathWidth,
+        });
+        // Pass MST edges
+        const prog = this.terrainShader.program;
+        this.gl.uniform4fv(this.gl.getUniformLocation(prog, 'uPathEdges'), this.ground.pathEdges);
+        this.gl.uniform1i(this.gl.getUniformLocation(prog, 'uNumEdges'), this.ground.numEdges);
+        this.ground.display();
+        this.setActiveShader(this.defaultShader);
+      this.popMatrix();
+    }
 
     this.pushMatrix();
-    this.multMatrix(sca);
-    if (this.displaySphere) {
-      this.skyboxMaterial.apply();
+      this.multMatrix(sca);
+      this.scale(this.skyScaleFactor, this.skyScaleFactor, this.skyScaleFactor);
 
-      this.setActiveShader(this.skyShader);
+      if (this.displaySky) {
+        this.skyboxMaterial.apply();
 
-      this.sphere.display();
-      this.setActiveShader(this.defaultShader);
-    }
+        this.setActiveShader(this.skyShader);
 
-    if (this.displayClouds) {
-      this.gl.enable(this.gl.BLEND);
-      this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
-      this.gl.depthMask(false);
+        this.sphere.display();
+        this.setActiveShader(this.defaultShader);
+      }
 
-      this.setActiveShader(this.cloudShader);
+      if (this.displayClouds) {
+        this.gl.enable(this.gl.BLEND);
+        this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+        this.gl.depthMask(false);
 
-      this.cloudAppearance.apply();
+        this.setActiveShader(this.cloudShader);
 
-      this.cloudShader.setUniformsValues({
-        uTime: this._cloudTime,
-        uDensity: this.cloudDensity,
-        uScale: this.cloudScale,
-      });
-      this.cloudSphere.display();
+        this.cloudAppearance.apply();
 
-      this.setActiveShader(this.defaultShader);
-      this.gl.depthMask(true);
-      this.gl.disable(this.gl.BLEND);
-    }
+        this.cloudShader.setUniformsValues({
+          uTime: this._cloudTime,
+          uDensity: this.cloudDensity,
+          uScale: this.cloudSize,
+        });
+        this.cloudSphere.display();
+
+        this.setActiveShader(this.defaultShader);
+        this.gl.depthMask(true);
+        this.gl.disable(this.gl.BLEND);
+      }
     this.popMatrix();
 
     if (this.displaySun && this.sunPosition) {
       this.pushMatrix();
-      this.translate(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z);
-      this.scale(this.sunScale, this.sunScale, this.sunScale);
-      this.sunMaterial.apply();
-      this.setActiveShader(this.sunShader); // use sun glow shader
-      this.updateSunShaderUniforms();
-      this.sunSphere.display();
-      this.setActiveShader(this.defaultShader);
+        this.multMatrix(sca);
+        this.translate(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z);
+        this.scale(this.sunScale, this.sunScale, this.sunScale);
+        this.sunMaterial.apply();
+        this.setActiveShader(this.sunShader); // use sun glow shader
+        this.updateSunShaderUniforms();
+        this.sunSphere.display();
+        this.setActiveShader(this.defaultShader);
       this.popMatrix();
     }
 
@@ -602,17 +599,18 @@ makeRng(seed) {
         let wy = this.terrainHeight(wx, wz);
 
         this.pushMatrix();
-        
-        this.translate(wx, wy, wz); // Move rock to its spot on the terrain
-        
-        // Apply random rotations so rocks don't all look identical
-        this.rotate(pos.rotY, 0, 1, 0); 
-        this.rotate(pos.rotX, 1, 0, 0);
-        this.rotate(pos.rotZ, 0, 0, 1);
-        
-        this.scale(pos.scale, pos.scale, pos.scale);
-        
-        this.rock.display();
+          this.multMatrix(sca);
+          this.translate(wx, wy, wz); // Move rock to its spot on the terrain
+          
+          // Apply random rotations so rocks don't all look identical
+          this.rotate(pos.rotY, 0, 1, 0); 
+          this.rotate(pos.rotX, 1, 0, 0);
+          this.rotate(pos.rotZ, 0, 0, 1);
+          
+          const finalScale = pos.scale * this.rockScaleFactor;
+          this.scale(finalScale, finalScale, finalScale);
+          
+          this.rock.display();
         this.popMatrix();
       }
     }
@@ -642,11 +640,13 @@ makeRng(seed) {
         });
         
         this.pushMatrix();
-        this.translate(wx, wy, wz); // Use dynamically calculated pos
-        this.rotate(g.rot, 0, 1, 0);
-        this.scale(g.scale, g.scale, g.scale);
-        
-        g.object.display();
+          this.multMatrix(sca);
+          this.translate(wx, wy, wz); // Use dynamically calculated pos
+          this.rotate(g.rot, 0, 1, 0);
+          const finalScale = g.scale * this.grassScaleFactor;
+          this.scale(finalScale, finalScale, finalScale);
+          
+          g.object.display();
         this.popMatrix();
       }
     }
@@ -667,36 +667,63 @@ makeRng(seed) {
         const finalY = this.terrainHeight(finalX, finalZ);
         
         this.pushMatrix();
+          this.multMatrix(sca);
 
-        this.translate(finalX, finalY, finalZ);
-        this.rotate(pos.rotation, 0, 1, 0);
-        this.scale(pos.scale, pos.scale, pos.scale);
+          this.translate(finalX, finalY, finalZ);
+          this.rotate(pos.rotation, 0, 1, 0);
+          const finalScale = pos.scale * this.treeScaleFactor;
+          this.scale(finalScale, finalScale, finalScale);
+          
+          pos.obj.display();
         
-        this.tree.display();
+        this.popMatrix();
+      }
+    }
+
+    if (this.displayFlower && this.flowerPositions) {
+      for (let i = 0; i < this.flowerPositions.length; i++) {
+        let pos = this.flowerPositions[i];
+
+        const finalX = pos.x * this.groundScale + pos.randomOffset;
+        const finalZ = pos.z * this.groundScale + pos.randomOffset;
+        const finalY = this.terrainHeight(finalX, finalZ);
         
+        this.pushMatrix();
+          this.multMatrix(sca);
+          
+          this.translate(finalX, finalY, finalZ);
+          this.rotate(pos.rotation, 0, 1, 0);
+          const finalScale = pos.scale * this.flowerScaleFactor;
+          this.scale(finalScale, finalScale, finalScale);
+          
+          pos.obj.display();
         this.popMatrix();
       }
     }
   }
 
   generateTrees() {
-    this.tree.init();
-    
     this.treePositions = [];
     const area = this.groundScale * this.groundScale;
     const numTrees = Math.round(area * this.treeDensity);
 
     let failedAttempts = 0;
     for (let i = 0; i < numTrees; i++) {
-      let randomX = (Math.random() - 0.5);
-      let randomZ = (Math.random() - 0.5);
+      const randomX = (Math.random() - 0.5);
+      const randomZ = (Math.random() - 0.5);
+      const randomW = Math.random() * 0.5 + 0.25;
+      const randomL = Math.random() * 20 + Math.random() * randomW * 30 + 10;
       
-      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ })) {
+      const obj = new MyLSTree(this, randomW, randomL);
+      obj.init();
+      
+      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ }, this.treeMinDistanceToPath)) {
         this.treePositions.push({
+          obj: obj,
           x: randomX,
           z: randomZ,
           randomOffset: 0,
-          scale: this.treeScaleFactor * (0.6 + Math.random() * 0.8),
+          scale: 0.6 + Math.random() * 0.8,
           rotation: Math.random() * Math.PI * 2,
         });
       } else if (failedAttempts < numTrees) {
@@ -710,6 +737,43 @@ makeRng(seed) {
     }
   }
 
+  generateFlowers() {
+    this.flowerPositions = [];
+    const area = this.groundScale * this.groundScale;
+    const numFlowers = Math.round(area * this.flowerDensity);
+
+    let failedAttempts = 0;
+    for (let i = 0; i < numFlowers; i++) {
+      const randomX = (Math.random() - 0.5);
+      const randomZ = (Math.random() - 0.5);
+      const randomW = Math.random() * 0.2 + 0.1;
+      const randomLL = Math.random()*0.6 + 0.2;
+      const randomP = Math.round(Math.random() * 6) + 4;
+      const randomPL = Math.random()+0.6;
+      
+      const obj = new MyLSFlower(this, randomW, 3,8, randomLL, 0.3, randomP, randomPL);
+      obj.init();
+      
+      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ }, this.flowerMinDistanceToPath)) {
+        this.flowerPositions.push({
+          obj: obj,
+          x: randomX,
+          z: randomZ,
+          randomOffset: 0,
+          scale: 0.6 + Math.random() * 0.8,
+          rotation: Math.random() * Math.PI * 2,
+        });
+      } else if (failedAttempts < numFlowers) {
+        failedAttempts++;
+        i--;
+      } else {
+        // the flower density is calculated based on the total area of the ground, so if we're failing so much,
+        // it means the available area is too small and shouldn't have too many flowers
+        break;
+      }
+    }
+  }
+
   generateRocks() {
     this.rockPositions = [];
     let failedAttempts = 0;
@@ -718,12 +782,11 @@ makeRng(seed) {
       let normX = (Math.random() - 0.5);
       let normZ = (Math.random() - 0.5);
       
-      // Reuse the tree path avoidance logic since the coordinate system is identical
-      if (this.checkRockOutsideAllEdges({ x: normX, z: normZ })) {
+      if (this.checkOutsideAllEdges({ x: normX, z: normZ }, this.rockMinDistanceToPath)) {
         this.rockPositions.push({
           normX: normX,
           normZ: normZ,
-          scale: this.rockScale * (0.5 + Math.random() * 1.0), // Randomize size a bit
+          scale: 0.5 + Math.random() * 1.0, // Randomize size a bit
           rotX: Math.random() * Math.PI * 2, // Rocks look better with random 3D rotations
           rotY: Math.random() * Math.PI * 2,
           rotZ: Math.random() * Math.PI * 2
@@ -733,21 +796,11 @@ makeRng(seed) {
         failedAttempts++;
         i--;
       } else {
-        break; // Stop if the map is too crowded
+        // the rock density is calculated based on the total area of the ground, so if we're failing so much,
+        // it means the available area is too small and shouldn't have too many flowers
+        break;
       }
     }
-  }
-
-  checkTreeOutsideAllEdges(tree) {
-    return this.checkOutsideAllEdges(tree, this.treeMinDistanceToPath);
-  }
-  
-  checkGrassOutsideAllEdges(tree) {
-    return this.checkOutsideAllEdges(tree, this.grassMinDistanceToPath);
-  }
-  
-  checkRockOutsideAllEdges(tree) {
-    return this.checkOutsideAllEdges(tree, this.rockMinDistanceToPath);
   }
 
   checkOutsideAllEdges(obj, tolerance = 0.05) {
