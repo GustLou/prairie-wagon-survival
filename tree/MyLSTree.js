@@ -3,11 +3,11 @@ import { MyBranch } from "./MyBranch.js";
 import { MyLeaf } from "./MyLeaf.js";
 
 /**
- * MyLSPlant
+ * MyLSTree
  * @constructor
  * @param scene - Reference to MyScene object
  */
-export class MyLSPlant extends MyLSystem {
+export class MyLSTree extends MyLSystem {
 	constructor(scene, trunkWidth = 0.5, leafScale = 30) {
         super(scene);
         this.trunkWidth = trunkWidth;
