@@ -25,23 +25,28 @@ export class MyInterface extends CGFinterface {
       generateFlowers: () => this.scene.generateFlowers(),
       save:            () => this.scene.saveCurrentPath(),
       print:           () => this.scene.printSavedPath(),
+      toggleDisplayAll:() => this.scene.toggleDisplayAll(),
     };
 
-    //Checkbox element in GUI
-    this.gui.add(this.scene, "displayAxis").name("Display Axis");
-    this.gui.add(this.scene, "displaySphere").name("Display Sphere");
+    // Global controls
+    const globalFolder = this.gui.addFolder("Global");
+    globalFolder.add(this.scene, "globalScaleFactor", 0.1, 200).name("Scale Factor");
+    globalFolder.add(this.scene, "displayAxis").name("Display Axis");
+    globalFolder.add(actions, "toggleDisplayAll").name("Toggle Display All");
 
-    //Slider element in GUI
-    this.gui.add(this.scene, "scaleFactor", 0.1, 200).name("Scale Factor");
-    this.gui.add(this.scene, "displaySun").name("Display Sun");
-    this.gui.add(this.scene, "sunScale", 0.1, 20).name("Sun Size");
+    // Sky controls
+    const skyFolder = this.gui.addFolder("Sky");
+    skyFolder.add(this.scene, "displaySky").name("Display Sky");
+    skyFolder.add(this.scene, "skyScaleFactor", 0.1, 200).name("Scale Factor");
+    skyFolder.add(this.scene, "displaySun").name("Display Sun");
+    skyFolder.add(this.scene, "sunScale", 0.1, 20).name("Sun Size");
 
     // Cloud controls
-    const cloudFolder = this.gui.addFolder("Clouds");
-    cloudFolder.add(this.scene, "displayClouds").name("Display Clouds");
-    cloudFolder.add(this.scene, "cloudSpeed", 0.0, 0.008).name("Speed");
-    cloudFolder.add(this.scene, "cloudDensity", 0.0, 0.9).name("Density");
-    cloudFolder.add(this.scene, "cloudScale", 1.0, 50.0).name("Scale");
+    // const cloudFolder = this.gui.addFolder("Clouds");
+    skyFolder.add(this.scene, "displayClouds").name("Display Clouds");
+    skyFolder.add(this.scene, "cloudSpeed", 0.0, 0.008).name("Speed");
+    skyFolder.add(this.scene, "cloudDensity", 0.0, 0.9).name("Density");
+    skyFolder.add(this.scene, "cloudSize", 1.0, 50.0).name("Cloud Size");
 
     // Tree controls
     const treeFolder = this.gui.addFolder('Tree');
@@ -61,7 +66,7 @@ export class MyInterface extends CGFinterface {
     flowerFolder.add(this.scene, 'flowerMinDistanceToPath').name('Min Distance to Path');
     flowerFolder.add(this.scene, 'flowerDensity', 0, 0.5).name('Density');
     flowerFolder.add(actions, 'generateFlowers').name('Generate Layout');
-    flowerFolder.open();
+    // flowerFolder.open();
 
     // Ground controls
     const groundFolder = this.gui.addFolder("Ground");
@@ -87,6 +92,7 @@ export class MyInterface extends CGFinterface {
     grassFolder.add(this.scene, 'bladesPerPatch', 1, 40, 1).name('Blades per Patch')
                .onFinishChange(() => this.scene.rebuildGrass());
     grassFolder.add(this.scene, 'grassMinDistanceToPath').name('Min Distance to Path');
+    grassFolder.add(this.scene, 'grassScaleFactor').name('Scale Factor');
     grassFolder.add(actions, 'generateGrass').name('Generate Layout');
 
     const rockFolder = this.gui.addFolder('Rock');
@@ -96,6 +102,7 @@ export class MyInterface extends CGFinterface {
     rockFolder.add(this.scene, 'rockSpawnSeed', 0,  100,  0.1).name('Spawn Seed')
           .onFinishChange(() => this.scene.rebuildRocks());
     rockFolder.add(this.scene, 'rockMinDistanceToPath').name('Min Distance to Path');
+    rockFolder.add(this.scene, 'rockScaleFactor').name('Scale Factor');
     rockFolder.add(actions, 'generateRocks').name('Generate Layout');
     return true;
     }

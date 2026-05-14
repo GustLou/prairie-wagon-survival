@@ -47,6 +47,7 @@ export class MyScene extends CGFscene {
 
     this.numPatches = 25; // number of patches center
     this.bladesPerPatch = 15; // density of each grass patch
+    this.grassScaleFactor = 1.0;
 
     this.pathNumPoints = 12;
     this.pathSeed = 0;
@@ -68,7 +69,7 @@ export class MyScene extends CGFscene {
     this.rocks = [];
     this.numRocks = 8;
     this.rockSpawnSeed  = 27.1;
-    this.rockScale = 0.25;
+    this.rockScaleFactor = 0.25;
     this.rockTexBlend = 0.5;
     this.rockMinDistanceToPath = 0.075;
 
@@ -126,25 +127,29 @@ export class MyScene extends CGFscene {
     
     // change this variable to start with everything displayed or not by default
     // TODO: remove this debug logic before final submission
-    const displayAll      = true;
-    this.displayAxis      = displayAll;
-    this.displaySphere    = displayAll;
-    this.displaySun       = displayAll;
-    this.displayClouds    = displayAll;
-    this.displayGround    = displayAll;
-    this.displayTree      = displayAll;
-    this.displayFlower    = displayAll;
-    this.displayGrass     = displayAll;
-    this.displayRock      = displayAll;
+    this.displayAll      = false;
+    this.displayAxis      = this.displayAll;
+    this.displaySky       = this.displayAll;
+    this.displaySun       = this.displayAll;
+    this.displayClouds    = this.displayAll;
+    this.displayGround    = this.displayAll;
+    this.displayTree      = this.displayAll;
+    this.displayFlower    = this.displayAll;
+    this.displayGrass     = this.displayAll;
+    this.displayRock      = this.displayAll;
+
     this.pathWidth = 0.03;
-    this.scaleFactor    = 25;
-    this.treeScaleFactor  = 0.5;
-    this.flowerScaleFactor  = 0.5;
-    this.cloudSpeed       = 0.001;
-    this.cloudDensity    = 0.62;
-    this.cloudScale    = 6.0;
-    this._cloudTime    = 0.0;
-    this._accumulatedTime = 0;
+
+    this.globalScaleFactor = 1;
+    this.skyScaleFactor    = 25;
+    this.treeScaleFactor   = 0.5;
+    this.flowerScaleFactor = 0.5;
+
+    this.cloudSpeed        = 0.001;
+    this.cloudDensity      = 0.62;
+    this.cloudSize        = 6.0; // as in how small the clouds are, the half-sphere radius is defined with skyScaleFactor
+    this._cloudTime        = 0.0;
+    this._accumulatedTime  = 0;
     this.setUpdatePeriod(16);
 
     this.rock = new MyRock(
@@ -160,6 +165,21 @@ export class MyScene extends CGFscene {
     this.generateTrees();
     this.generateFlowers();
     this.generateRocks();
+  }
+
+  toggleDisplayAll() {
+    const newValue = !this.displayAll;
+
+    this.displayAll       = newValue;
+    this.displayAxis      = newValue;
+    this.displaySky       = newValue;
+    this.displaySun       = newValue;
+    this.displayClouds    = newValue;
+    this.displayGround    = newValue;
+    this.displayTree      = newValue;
+    this.displayFlower    = newValue;
+    this.displayGrass     = newValue;
+    this.displayRock      = newValue;
   }
 
   // Shortest distance from point (px, pz) to segment (x1, z1) -> (x2, z2)
@@ -441,8 +461,31 @@ makeRng(seed) {
     this.syncSunLight();
 
     if (this.displayAxis) this.axis.display();
+
+    // to be applied to everything (must be added manually inside each pushMatrix-popMatrix codeblock)
+    var sca = [
+      this.globalScaleFactor,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      this.globalScaleFactor,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      this.globalScaleFactor,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+    ];
+
     if (this.displayGround) {
       this.pushMatrix();
+        this.multMatrix(sca);
+
         this.rotate(-Math.PI / 2, 1, 0, 0);
         this.scale(this.groundScale, this.groundScale, this.groundScale);
 
@@ -493,30 +536,11 @@ makeRng(seed) {
       this.popMatrix();
     }
 
-    var sca = [
-      this.scaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      this.scaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      this.scaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-    ];
-
-    // Draw sphere first so transparent sun can blend against it
-
     this.pushMatrix();
       this.multMatrix(sca);
-      if (this.displaySphere) {
+      this.scale(this.skyScaleFactor, this.skyScaleFactor, this.skyScaleFactor);
+
+      if (this.displaySky) {
         this.skyboxMaterial.apply();
 
         this.setActiveShader(this.skyShader);
@@ -537,7 +561,7 @@ makeRng(seed) {
         this.cloudShader.setUniformsValues({
           uTime: this._cloudTime,
           uDensity: this.cloudDensity,
-          uScale: this.cloudScale,
+          uScale: this.cloudSize,
         });
         this.cloudSphere.display();
 
@@ -549,6 +573,7 @@ makeRng(seed) {
 
     if (this.displaySun && this.sunPosition) {
       this.pushMatrix();
+        this.multMatrix(sca);
         this.translate(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z);
         this.scale(this.sunScale, this.sunScale, this.sunScale);
         this.sunMaterial.apply();
@@ -574,6 +599,7 @@ makeRng(seed) {
         let wy = this.terrainHeight(wx, wz);
 
         this.pushMatrix();
+          this.multMatrix(sca);
           this.translate(wx, wy, wz); // Move rock to its spot on the terrain
           
           // Apply random rotations so rocks don't all look identical
@@ -581,7 +607,8 @@ makeRng(seed) {
           this.rotate(pos.rotX, 1, 0, 0);
           this.rotate(pos.rotZ, 0, 0, 1);
           
-          this.scale(pos.scale, pos.scale, pos.scale);
+          const finalScale = pos.scale * this.rockScaleFactor;
+          this.scale(finalScale, finalScale, finalScale);
           
           this.rock.display();
         this.popMatrix();
@@ -613,9 +640,11 @@ makeRng(seed) {
         });
         
         this.pushMatrix();
+          this.multMatrix(sca);
           this.translate(wx, wy, wz); // Use dynamically calculated pos
           this.rotate(g.rot, 0, 1, 0);
-          this.scale(g.scale, g.scale, g.scale);
+          const finalScale = g.scale * this.grassScaleFactor;
+          this.scale(finalScale, finalScale, finalScale);
           
           g.object.display();
         this.popMatrix();
@@ -638,10 +667,12 @@ makeRng(seed) {
         const finalY = this.terrainHeight(finalX, finalZ);
         
         this.pushMatrix();
+          this.multMatrix(sca);
 
           this.translate(finalX, finalY, finalZ);
           this.rotate(pos.rotation, 0, 1, 0);
-          this.scale(pos.scale, pos.scale, pos.scale);
+          const finalScale = pos.scale * this.treeScaleFactor;
+          this.scale(finalScale, finalScale, finalScale);
           
           pos.obj.display();
         
@@ -658,9 +689,12 @@ makeRng(seed) {
         const finalY = this.terrainHeight(finalX, finalZ);
         
         this.pushMatrix();
+          this.multMatrix(sca);
+          
           this.translate(finalX, finalY, finalZ);
           this.rotate(pos.rotation, 0, 1, 0);
-          this.scale(pos.scale, pos.scale, pos.scale);
+          const finalScale = pos.scale * this.flowerScaleFactor;
+          this.scale(finalScale, finalScale, finalScale);
           
           pos.obj.display();
         this.popMatrix();
@@ -689,7 +723,7 @@ makeRng(seed) {
           x: randomX,
           z: randomZ,
           randomOffset: 0,
-          scale: this.treeScaleFactor * (0.6 + Math.random() * 0.8),
+          scale: 0.6 + Math.random() * 0.8,
           rotation: Math.random() * Math.PI * 2,
         });
       } else if (failedAttempts < numTrees) {
@@ -726,7 +760,7 @@ makeRng(seed) {
           x: randomX,
           z: randomZ,
           randomOffset: 0,
-          scale: this.flowerScaleFactor * (0.6 + Math.random() * 0.8),
+          scale: 0.6 + Math.random() * 0.8,
           rotation: Math.random() * Math.PI * 2,
         });
       } else if (failedAttempts < numFlowers) {
@@ -752,7 +786,7 @@ makeRng(seed) {
         this.rockPositions.push({
           normX: normX,
           normZ: normZ,
-          scale: this.rockScale * (0.5 + Math.random() * 1.0), // Randomize size a bit
+          scale: 0.5 + Math.random() * 1.0, // Randomize size a bit
           rotX: Math.random() * Math.PI * 2, // Rocks look better with random 3D rotations
           rotY: Math.random() * Math.PI * 2,
           rotZ: Math.random() * Math.PI * 2
