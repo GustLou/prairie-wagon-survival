@@ -104,6 +104,26 @@ export class MyInterface extends CGFinterface {
     rockFolder.add(this.scene, 'rockMinDistanceToPath').name('Min Distance to Path');
     rockFolder.add(this.scene, 'rockScaleFactor').name('Scale Factor');
     rockFolder.add(actions, 'generateRocks').name('Generate Layout');
+
+    // Barn controls
+    const barnFolder = this.gui.addFolder('Barn');
+    barnFolder.add(this.scene, 'displayBarn').name('Display Barn');
+    barnFolder.add(this.scene, 'barnX', -12, 12, 0.1).name('Position X');
+    barnFolder.add(this.scene, 'barnZ', -12, 12, 0.1).name('Position Z');
+    barnFolder.add(this.scene, 'barnRotation', -Math.PI, Math.PI, 0.05).name('Rotation');
+    barnFolder.add(this.scene, 'barnScale', 0.2, 5.0, 0.05).name('Scale');
+    barnFolder.add(this.scene, 'displayFence').name('Display Fence');
+    barnFolder.add(this.scene, 'fenceRadius', 0.5, 8.0, 0.1).name('Fence Radius');
+    barnFolder.add(this.scene, 'fenceEntranceArc', 0, Math.PI, 0.02).name('Entrance Width');
+    barnFolder.add(this.scene, 'fenceIntersected').name('Wagon Intersect (test)');
+
+    // Hay silo controls
+    const siloFolder = this.gui.addFolder('Hay Silo');
+    siloFolder.add(this.scene, 'displaySilo').name('Display Silo');
+    siloFolder.add(this.scene, 'siloOffsetX', -3, 3, 0.05).name('Offset X (local)');
+    siloFolder.add(this.scene, 'siloOffsetZ', -3, 3, 0.05).name('Offset Z (local)');
+    siloFolder.add(this.scene, 'siloHayLevel', 0, 1, 0.01).name('Hay Level');
+
     return true;
     }
 }

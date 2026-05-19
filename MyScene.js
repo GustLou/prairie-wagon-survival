@@ -13,6 +13,9 @@ import { MyRock } from "./MyRock.js";
 import { MyGrass } from "./MyGrass.js";
 import { MyLSTree } from "./tree/MyLSTree.js";
 import { MyLSFlower } from "./tree/MyLSFlower.js";
+import { MyBarn } from "./MyBarn.js";
+import { MyCircularFence } from "./MyCircularFence.js";
+import { MyHaySilo } from "./MyHaySilo.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -137,6 +140,9 @@ export class MyScene extends CGFscene {
     this.displayFlower    = this.displayAll;
     this.displayGrass     = this.displayAll;
     this.displayRock      = this.displayAll;
+    this.displayBarn      = this.displayAll;
+    this.displayFence     = this.displayAll;
+    this.displaySilo      = this.displayAll;
 
     this.pathWidth = 0.03;
 
@@ -165,6 +171,101 @@ export class MyScene extends CGFscene {
     this.generateTrees();
     this.generateFlowers();
     this.generateRocks();
+
+    // --- Barn + circular fence ---
+    this.barn = new MyBarn(this);
+
+    // Barn placement: x/z in world units (relative to the [-groundScale/2, +groundScale/2] map)
+    this.barnX = -6.0;
+    this.barnZ =  4.0;
+    this.barnRotation = Math.PI * 0.15; // a slight angle so it doesn't look axis-aligned
+    this.barnScale = 1.6;               // unit barn → final size multiplier
+
+    // Fence around the barn
+    this.fenceRadius = 3.2;
+    this.fence = new MyCircularFence(this, this.barnX, this.barnZ, this.fenceRadius, 48);
+    this.fenceIntersected = false; // GUI toggle for now; wagon collision will drive this later
+    this.fenceEntranceArc = Math.PI / 5; // ~36°: roughly one wagon's width
+
+    this.displayBarn  = true;
+    this.displayFence = true;
+
+    // --- Hay silo ---
+    // Local offset (in the barn's un-rotated frame). +X is along the barn's
+    // long axis. The silo lives next to the barn's right end, slightly back
+    // — inside the fence.
+    this.siloOffsetX = 1.50;
+    this.siloOffsetZ = -0.50;
+    this.siloRadius  = 0.55;
+    this.siloHeight  = 2.0;
+    this.siloHayLevel = 0.55;
+    this.siloRotationOffset = 0; // GUI fine-tune knob (radians)
+
+    this.silo = new MyHaySilo(this, this.siloRadius, this.siloHeight, 40, Math.PI / 3);
+    this.displaySilo = true;
+  }
+
+  /**
+   * Compute the silo's world-space placement based on its local offset
+   * relative to the barn (so moving/rotating the barn drags it along), the
+   * terrain height under it, and a Y-rotation that aims the opening
+   * straight at the fence entrance — so as soon as the wagon drives in,
+   * the hay level is visible through the gap.
+   */
+  siloPlacement() {
+    const cos = Math.cos(this.barnRotation);
+    const sin = Math.sin(this.barnRotation);
+    // Rotate local offset into world space (Y-axis rotation convention used
+    // by the rest of the scene).
+    const dx =  cos * this.siloOffsetX + sin * this.siloOffsetZ;
+    const dz = -sin * this.siloOffsetX + cos * this.siloOffsetZ;
+    // Multiply by barn scale so the silo stays close even if the barn grows.
+    const wx = this.barnX + dx * this.barnScale;
+    const wz = this.barnZ + dz * this.barnScale;
+    const wy = this.terrainHeight(wx, wz);
+
+    // World position of the fence entrance (the gap in the fence centered on
+    // the barn's front).  The fence entrance angle is (π/2 − barnRotation)
+    // in the fence's polar parameterization, which corresponds to the
+    // world direction (sin θ, cos θ) where θ = barnRotation.
+    const eX = this.barnX + this.fenceRadius * sin;
+    const eZ = this.barnZ + this.fenceRadius * cos;
+
+    // We want the silo's local +X (the centre of the wall gap) to point
+    // toward the entrance.  After rotating around Y by α, local +X maps to
+    // world (cos α, 0, -sin α).  So α = atan2(-(eZ − wz), eX − wx).
+    const rotation =
+      Math.atan2(-(eZ - wz), (eX - wx)) + this.siloRotationOffset;
+
+    return { x: wx, y: wy, z: wz, rot: rotation };
+  }
+
+  /**
+   * Pick the highest of a small set of terrain samples around the barn footprint
+   * so the barn's bottom rests on (or just above) the ground instead of floating
+   * or being half-buried.
+   */
+  barnGroundY() {
+    const halfL = (this.barn.bodyLength / 2) * this.barnScale;
+    const halfW = (this.barn.bodyWidth  / 2) * this.barnScale;
+    const cos = Math.cos(this.barnRotation), sin = Math.sin(this.barnRotation);
+
+    let maxY = -Infinity;
+    const offsets = [
+      [0, 0],
+      [ halfL,  halfW], [ halfL, -halfW],
+      [-halfL,  halfW], [-halfL, -halfW],
+    ];
+    for (const [ox, oz] of offsets) {
+      // rotate local offset by barnRotation around Y
+      const rx =  cos * ox + sin * oz;
+      const rz = -sin * ox + cos * oz;
+      const wx = this.barnX + rx;
+      const wz = this.barnZ + rz;
+      const y = this.terrainHeight(wx, wz);
+      if (y > maxY) maxY = y;
+    }
+    return maxY;
   }
 
   toggleDisplayAll() {
@@ -180,6 +281,9 @@ export class MyScene extends CGFscene {
     this.displayFlower    = newValue;
     this.displayGrass     = newValue;
     this.displayRock      = newValue;
+    this.displayBarn      = newValue;
+    this.displayFence     = newValue;
+    this.displaySilo      = newValue;
   }
 
   // Shortest distance from point (px, pz) to segment (x1, z1) -> (x2, z2)
@@ -334,10 +438,18 @@ export class MyScene extends CGFscene {
       this.sunPosition.z,
       0.0, // 0 because of directional
     );
+    // Adding a meaningful ambient term to BOTH the scene and the light
+    // means the side of an object facing away from the sun still receives
+    // light (instead of going almost black with a purely directional sun).
+    this.lights[0].setAmbient(0.45, 0.45, 0.45, 1.0);
     this.lights[0].setDiffuse(1.0, 0.95, 0.7, 1.0);
     this.lights[0].setSpecular(1.0, 0.95, 0.7, 1.0);
     this.lights[0].enable();
     this.lights[0].update();
+
+    // Global scene ambient — affects every material that uses the default
+    // CGF shader (i.e. anything that isn't drawing with a custom shader).
+    this.setGlobalAmbientLight(0.55, 0.55, 0.55, 1.0);
   }
 
   syncSunLight() {
@@ -678,6 +790,53 @@ makeRng(seed) {
         
         this.popMatrix();
       }
+    }
+
+    // --- Barn ---
+    if (this.displayBarn && this.barn) {
+      const groundY = this.barnGroundY();
+      this.pushMatrix();
+        this.multMatrix(sca);
+        this.translate(this.barnX, groundY, this.barnZ);
+        this.rotate(this.barnRotation, 0, 1, 0);
+        this.scale(this.barnScale, this.barnScale, this.barnScale);
+        this.barn.display();
+      this.popMatrix();
+    }
+
+    // --- Hay silo (next to the barn, inside the fence) ---
+    if (this.displaySilo && this.silo) {
+      this.silo.setHayLevel(this.siloHayLevel);
+      const p = this.siloPlacement();
+      this.pushMatrix();
+        this.multMatrix(sca);
+        this.translate(p.x, p.y, p.z);
+        this.rotate(p.rot, 0, 1, 0);
+        this.silo.display();
+      this.popMatrix();
+    }
+
+    // --- Circular fence around the barn ---
+    if (this.displayFence && this.fence) {
+      // Keep fence center/radius in sync with the GUI sliders.
+      this.fence.setCenter(this.barnX, this.barnZ);
+      this.fence.setRadius(this.fenceRadius);
+      this.fence.setIntersected(this.fenceIntersected);
+
+      // Auto-orient the entrance so it lines up with the barn's front door.
+      // The barn's front faces local +Z, which after rotating by
+      // barnRotation around Y points to (sin θ, 0, cos θ) in world space.
+      // The fence's angle param uses (cos a, sin a) on (X, Z), so:
+      //   cos a = sin θ, sin a = cos θ   ⇒   a = π/2 − θ
+      this.fence.setEntrance(
+        Math.PI / 2 - this.barnRotation,
+        this.fenceEntranceArc,
+      );
+
+      this.pushMatrix();
+        this.multMatrix(sca);
+        this.fence.display();
+      this.popMatrix();
     }
 
     if (this.displayFlower && this.flowerPositions) {
