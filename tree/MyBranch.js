@@ -8,7 +8,7 @@ import {CGFobject} from '../../lib/CGF.js';
 export class MyBranch extends CGFobject {
     constructor(scene, radius) {
         super(scene);
-        this.slices = 6;
+        this.slices = 3;
         this.scale = radius;
         this.initBuffers();
     }

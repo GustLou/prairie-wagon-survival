@@ -269,6 +269,20 @@ export class MyScene extends CGFscene {
       "shaders/wind.frag",
     );
     this.windShader.setUniformsValues({ uTime: 0.0 });
+
+    this.rockShader = new CGFshader(
+      this.gl,
+      'shaders/rock.vert',
+      'shaders/rock.frag'
+    );
+    this.rockShader.setUniformsValues({
+      uSeed:        this.seed,
+      uRoughness:   this.roughness,
+      uTexBlend:    0.0,
+      uSampler0:    0,
+      uSampler1:    1,
+      uLightDir:    [0.0, 0.8, 0.5]
+    });
   }
 
   updateSunShaderUniforms() {
@@ -586,7 +600,8 @@ makeRng(seed) {
 
     if (this.displayRock && this.rockPositions) {
       // Set the uniform once for all rocks
-      this.rock.rockShader.setUniformsValues({ uTexBlend: this.rockTexBlend });
+      this.setActiveShader(this.rockShader);
+      this.rockShader.setUniformsValues({ uTexBlend: this.rockTexBlend });
 
       for (let i = 0; i < this.rockPositions.length; i++) {
         let pos = this.rockPositions[i];
