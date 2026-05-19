@@ -385,7 +385,7 @@ export class MyScene extends CGFscene {
   initTrees() {
     this.axiom = "X";
     this.angle = 30.0;
-    this.iterations = 5;
+    this.iterations = 4;
     this.treeScaleFactor= 0.5;
   }
 
@@ -726,7 +726,7 @@ makeRng(seed) {
     for (let i = 0; i < numTrees; i++) {
       const randomX = (Math.random() - 0.5);
       const randomZ = (Math.random() - 0.5);
-      const randomW = Math.random() * 0.5 + 0.25;
+      const randomW = Math.random() * 0.4 + 0.15;
       const randomL = Math.random() * 20 + Math.random() * randomW * 30 + 10;
       
       const obj = new MyLSTree(this, randomW, randomL);
@@ -761,7 +761,7 @@ makeRng(seed) {
     for (let i = 0; i < numFlowers; i++) {
       const randomX = (Math.random() - 0.5);
       const randomZ = (Math.random() - 0.5);
-      const randomW = Math.random() * 0.2 + 0.1;
+      const randomW = Math.random() * 0.15 + 0.05;
       const randomLL = Math.random()*0.6 + 0.2;
       const randomP = Math.round(Math.random() * 6) + 4;
       const randomPL = Math.random()+0.6;

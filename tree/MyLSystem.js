@@ -42,7 +42,7 @@ export class MyLSystem extends CGFobject {
 
         // adicionar pares caracter / primitiva
         this.grammar.push("F")
-        this.primitives.push(new MyQuad(this.scene, 0.2 * this.scale, this.scale));
+        this.primitives.push(new MyQuad(this.scene, 0.2, 1));
     }
 
     // cria as producoes
