@@ -13,6 +13,7 @@ import { MyRock } from "./MyRock.js";
 import { MyGrass } from "./MyGrass.js";
 import { MyLSTree } from "./tree/MyLSTree.js";
 import { MyLSFlower } from "./tree/MyLSFlower.js";
+import { MyHay } from "./hay/MyHay.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -145,7 +146,7 @@ export class MyScene extends CGFscene {
     this.treeScaleFactor   = 0.5;
     this.flowerScaleFactor = 0.5;
 
-    this.cloudSpeed        = 0.001;
+    this.cloudSpeed        = 0.05;
     this.cloudDensity      = 0.62;
     this.cloudSize        = 6.0; // as in how small the clouds are, the half-sphere radius is defined with skyScaleFactor
     this._cloudTime        = 0.0;
@@ -160,6 +161,11 @@ export class MyScene extends CGFscene {
       0.08,
       'textures/white_rock_texture.jpg',
       'textures/black_rock_texture.jpg',
+    );
+
+    this.hay = new MyHay(
+      this,
+      'textures/haystack.png',
     );
 
     this.generateTrees();
@@ -211,10 +217,15 @@ export class MyScene extends CGFscene {
 }
 
   update(t) {
-    this._accumulatedTime += t;
-    this._cloudTime = (this._accumulatedTime / 10e11) * this.cloudSpeed;
+    // t = Date.now() — an absolute Unix timestamp (~1.748e12 ms).
+    // We subtract the scene's start time so elapsed stays near 0,
+    // keeping uTime in float32-safe range for shader sin() calls.
+    if (this._startTime === undefined) this._startTime = t;
+    const elapsed = t - this._startTime; // ms since scene start
 
-    this.windShader.setUniformsValues({ uTime: this._accumulatedTime / 1500.0 });
+    this._cloudTime = (elapsed / 1000.0) * this.cloudSpeed;
+    this.windShader.setUniformsValues({ uTime: elapsed / 1000.0 }); // seconds
+    this.hay.update(elapsed);
   }
 
   // CPU replicas of terrain.vert noise/fbm — used to place grass at correct height
@@ -268,7 +279,7 @@ export class MyScene extends CGFscene {
       "shaders/wind.vert",
       "shaders/wind.frag",
     );
-    this.windShader.setUniformsValues({ uTime: 0.0 });
+    this.windShader.setUniformsValues({ uTime: 0.0, uWindStrength: 0.6, uWindSpeed: 2.0 });
 
     this.rockShader = new CGFshader(
       this.gl,
@@ -348,6 +359,7 @@ export class MyScene extends CGFscene {
       this.sunPosition.z,
       0.0, // 0 because of directional
     );
+    this.lights[0].setAmbient(0.3, 0.28, 0.22, 1.0);
     this.lights[0].setDiffuse(1.0, 0.95, 0.7, 1.0);
     this.lights[0].setSpecular(1.0, 0.95, 0.7, 1.0);
     this.lights[0].enable();
@@ -409,16 +421,19 @@ export class MyScene extends CGFscene {
 
             if (this.isOnPath(tempWx, tempWz)) continue;
 
-            let levels = Math.floor(Math.random() * 2) + 2;
+            let levels = Math.floor(Math.random() * 2) + 3;
             let blade = new MyGrass(this, levels, 0.1, 0.1 + Math.random() * 0.2);
             blade.health = Math.max(0, Math.min(1, patchHealth + (Math.random() - 0.5) * 0.2));
 
+            const wx = tempWx;
+            const wz = tempWz;
+            const wy = this.terrainHeight(wx, wz);
+
             this.grassBlades.push({
                 object: blade,
-                normCenterX: normCenterX,
-                normCenterZ: normCenterZ,
-                offsetX: offsetX,
-                offsetZ: offsetZ,
+                wx: wx,
+                wz: wz,
+                wy: wy,
                 rot: Math.random() * Math.PI * 2,
                 scale: 0.8 + Math.random() * 0.4
             });
@@ -632,35 +647,22 @@ makeRng(seed) {
 
     this.setActiveShader(this.windShader);
 
-    // Example wind parameters
-    this.windShader.setUniformsValues({ 
-        uWindStrength: 0.2,
-        uWindSpeed: 1.5 
-    });
-
     if (this.displayGrass) {
       for (let i = 0; i < this.grassBlades.length; i++) {
         let g = this.grassBlades[i];
-  
-        // 1. Calculate the real world position dynamically 
-        let wx = (g.normCenterX * (this.groundScale - 4.0)) + g.offsetX;
-        let wz = (g.normCenterZ * (this.groundScale - 4.0)) + g.offsetZ;
-        
-        // 2. Fetch the terrain height at the new scaled position
-        let wy = this.terrainHeight(wx, wz);
-  
+
         this.windShader.setUniformsValues({
             uHealth: g.object.health,
-            uBladeWorldPos: [wx, wz]
+            uBladeWorldPos: [g.wx, g.wz]
         });
-        
+
         this.pushMatrix();
           this.multMatrix(sca);
-          this.translate(wx, wy, wz); // Use dynamically calculated pos
+          this.translate(g.wx, g.wy, g.wz);
           this.rotate(g.rot, 0, 1, 0);
           const finalScale = g.scale * this.grassScaleFactor;
           this.scale(finalScale, finalScale, finalScale);
-          
+
           g.object.display();
         this.popMatrix();
       }
@@ -715,6 +717,8 @@ makeRng(seed) {
         this.popMatrix();
       }
     }
+
+    this.hay.display();
   }
 
   generateTrees() {

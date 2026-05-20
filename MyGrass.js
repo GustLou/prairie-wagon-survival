@@ -7,7 +7,7 @@ export class MyGrass extends CGFobject {
    * @param width - The initial width
    * @param height - The height
    */
-  constructor(scene, levels = 2, width = 0.2, height = 1.0) {
+  constructor(scene, levels = 4, width = 0.2, height = 1.0) {
     super(scene);
 
     // procedural variation of these fields
