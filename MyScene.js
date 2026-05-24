@@ -126,8 +126,7 @@ export class MyScene extends CGFscene {
       uScale: 12.4,
     });
     
-    // change this variable to start with everything displayed or not by default
-    // TODO: remove this debug logic before final submission
+
     this.displayAll      = false;
     this.displayAxis      = this.displayAll;
     this.displaySky       = this.displayAll;
@@ -165,7 +164,7 @@ export class MyScene extends CGFscene {
     );
 
     this.hayScaleFactor = 0.3;
-    this.numHay = 5;
+    this.numHay = 8;
     this.hayMinDistanceToPath = 0.05;
 
     this.hay = new MyHay(
@@ -730,7 +729,18 @@ makeRng(seed) {
         const pos = this.hayPositions[i];
         const wx = pos.normX * this.groundScale;
         const wz = pos.normZ * this.groundScale;
-        const wy = this.terrainHeight(wx, wz);
+
+        // Sample all 4 corners of the bale footprint and use the highest point,
+        // so the bale sits on top of the terrain even on steep slopes.
+        const hw = 0.75 * this.hayScaleFactor; // half of bale width  (1.5 * scale / 2)
+        const hd = 0.5  * this.hayScaleFactor; // half of bale depth  (1.0 * scale / 2)
+        const wy = Math.max(
+          this.terrainHeight(wx,      wz     ),
+          this.terrainHeight(wx + hw, wz + hd),
+          this.terrainHeight(wx - hw, wz + hd),
+          this.terrainHeight(wx + hw, wz - hd),
+          this.terrainHeight(wx - hw, wz - hd),
+        );
 
         this.pushMatrix();
           this.multMatrix(sca);

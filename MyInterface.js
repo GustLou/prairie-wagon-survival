@@ -31,7 +31,7 @@ export class MyInterface extends CGFinterface {
 
     // Global controls
     const globalFolder = this.gui.addFolder("Global");
-    globalFolder.add(this.scene, "globalScaleFactor", 0.1, 200).name("Scale Factor");
+    globalFolder.add(this.scene, "globalScaleFactor", 0.1, 5).name("Scale Factor");
     globalFolder.add(this.scene, "displayAxis").name("Display Axis");
     globalFolder.add(actions, "toggleDisplayAll").name("Toggle Display All");
 
