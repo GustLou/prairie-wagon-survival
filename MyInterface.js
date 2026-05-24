@@ -23,6 +23,7 @@ export class MyInterface extends CGFinterface {
       generateRocks:   () => this.scene.generateRocks(),
       generateGrass:   () => this.scene.rebuildGrass(),
       generateFlowers: () => this.scene.generateFlowers(),
+      generateHay:     () => this.scene.generateHay(),
       save:            () => this.scene.saveCurrentPath(),
       print:           () => this.scene.printSavedPath(),
       toggleDisplayAll:() => this.scene.toggleDisplayAll(),
@@ -94,6 +95,13 @@ export class MyInterface extends CGFinterface {
     grassFolder.add(this.scene, 'grassMinDistanceToPath').name('Min Distance to Path');
     grassFolder.add(this.scene, 'grassScaleFactor').name('Scale Factor');
     grassFolder.add(actions, 'generateGrass').name('Generate Layout');
+
+    const hayFolder = this.gui.addFolder('Hay');
+    hayFolder.add(this.scene, 'displayHay').name('Display');
+    hayFolder.add(this.scene, 'numHay', 1, 20, 1).name('Count');
+    hayFolder.add(this.scene, 'hayMinDistanceToPath', 0.01, 0.2).name('Min Distance to Path');
+    hayFolder.add(this.scene, 'hayScaleFactor', 0.1, 3.0).name('Scale Factor');
+    hayFolder.add(actions, 'generateHay').name('Generate Layout');
 
     const rockFolder = this.gui.addFolder('Rock');
     rockFolder.add(this.scene, 'displayRock').name('Display');

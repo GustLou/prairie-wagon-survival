@@ -138,6 +138,7 @@ export class MyScene extends CGFscene {
     this.displayFlower    = this.displayAll;
     this.displayGrass     = this.displayAll;
     this.displayRock      = this.displayAll;
+    this.displayHay       = true;
 
     this.pathWidth = 0.03;
 
@@ -163,6 +164,10 @@ export class MyScene extends CGFscene {
       'textures/black_rock_texture.jpg',
     );
 
+    this.hayScaleFactor = 0.3;
+    this.numHay = 5;
+    this.hayMinDistanceToPath = 0.05;
+
     this.hay = new MyHay(
       this,
       'textures/haystack.png',
@@ -171,6 +176,7 @@ export class MyScene extends CGFscene {
     this.generateTrees();
     this.generateFlowers();
     this.generateRocks();
+    this.generateHay();
   }
 
   toggleDisplayAll() {
@@ -186,6 +192,7 @@ export class MyScene extends CGFscene {
     this.displayFlower    = newValue;
     this.displayGrass     = newValue;
     this.displayRock      = newValue;
+    this.displayHay       = newValue;
   }
 
   // Shortest distance from point (px, pz) to segment (x1, z1) -> (x2, z2)
@@ -718,7 +725,22 @@ makeRng(seed) {
       }
     }
 
-    this.hay.display();
+    if (this.displayHay && this.hayPositions) {
+      for (let i = 0; i < this.hayPositions.length; i++) {
+        const pos = this.hayPositions[i];
+        const wx = pos.normX * this.groundScale;
+        const wz = pos.normZ * this.groundScale;
+        const wy = this.terrainHeight(wx, wz);
+
+        this.pushMatrix();
+          this.multMatrix(sca);
+          this.translate(wx, wy, wz);
+          this.rotate(pos.rotation, 0, 1, 0);
+          this.scale(this.hayScaleFactor, this.hayScaleFactor, this.hayScaleFactor);
+          this.hay.display();
+        this.popMatrix();
+      }
+    }
   }
 
   generateTrees() {
@@ -817,6 +839,29 @@ makeRng(seed) {
       } else {
         // the rock density is calculated based on the total area of the ground, so if we're failing so much,
         // it means the available area is too small and shouldn't have too many flowers
+        break;
+      }
+    }
+  }
+
+  generateHay() {
+    this.hayPositions = [];
+    let failedAttempts = 0;
+
+    for (let i = 0; i < this.numHay; i++) {
+      const normX = (Math.random() - 0.5);
+      const normZ = (Math.random() - 0.5);
+
+      if (this.checkOutsideAllEdges({ x: normX, z: normZ }, this.hayMinDistanceToPath)) {
+        this.hayPositions.push({
+          normX: normX,
+          normZ: normZ,
+          rotation: Math.random() * Math.PI * 2,
+        });
+      } else if (failedAttempts < this.numHay * 2) {
+        failedAttempts++;
+        i--;
+      } else {
         break;
       }
     }
