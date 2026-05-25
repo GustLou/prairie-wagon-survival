@@ -34,6 +34,7 @@ export class MyInterface extends CGFinterface {
     globalFolder.add(this.scene, "globalScaleFactor", 0.1, 5).name("Scale Factor");
     globalFolder.add(this.scene, "displayAxis").name("Display Axis");
     globalFolder.add(actions, "toggleDisplayAll").name("Toggle Display All");
+    globalFolder.add(this.scene, "followCamera").name("Camera Following the Wagon");
 
     // Sky controls
     const skyFolder = this.gui.addFolder("Sky");

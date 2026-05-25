@@ -127,6 +127,7 @@ export class MyScene extends CGFscene {
       uScale: 12.4,
     });
     
+    this.followCamera = false;
 
     this.displayAll      = false;
     this.displayAxis      = this.displayAll;
@@ -262,6 +263,29 @@ export class MyScene extends CGFscene {
     this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed;
 
     this.wagon.updateWheelAngle(this.wagonSpeed);
+
+    if (this.followCamera) this.updateCamera();
+  }
+
+  updateCamera() {
+    const followDistance = 8.0;
+    const followHeight = 5;
+
+    const wagonY = this.terrainHeight(this.wagonPosition.x, this.wagonPosition.z);
+
+    const target = vec3.fromValues(this.wagonPosition.x, wagonY+1, this.wagonPosition.z);
+
+    const offsetX = Math.sin(this.wagonAngle) * followDistance;
+    const offsetZ = Math.cos(this.wagonAngle) * followDistance;
+
+    const camX = this.wagonPosition.x - offsetX;
+    const camZ = this.wagonPosition.z - offsetZ;
+    const camY = wagonY + followHeight; 
+
+    const position = vec3.fromValues(camX, camY, camZ);
+
+    this.camera.setPosition(position);
+    this.camera.setTarget(target);
   }
 
   checkKeys() {
