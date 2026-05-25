@@ -181,10 +181,9 @@ export class MyScene extends CGFscene {
     this.wagonAngle = 0;                 // Current heading (rotation on Y axis)
     this.wagonSpeed = 0;                 // Current velocity
     
-    this.wagonMaxSpeed = 0.2;            // Maximum speed limit
     this.wagonAcceleration = 0.01;       // How fast it accelerates per frame
     this.wagonFriction = 0.92;           // Friction to slow it down when keys are released
-    this.wagonTurnRate = 0.6;            // Base turn rate (will be multiplied by speed)
+    this.wagonTurnRate = 0.4;            // Base turn rate (will be multiplied by speed)
 
     this.generateTrees();
     this.generateFlowers();
@@ -252,10 +251,6 @@ export class MyScene extends CGFscene {
     // Apply friction to gradually slow down the wagon
     this.wagonSpeed *= this.wagonFriction;
 
-    // Clamp to maximum speed
-    if (this.wagonSpeed > this.wagonMaxSpeed) this.wagonSpeed = this.wagonMaxSpeed;
-    if (this.wagonSpeed < -this.wagonMaxSpeed) this.wagonSpeed = -this.wagonMaxSpeed;
-
     // Stop micro-sliding when speed is extremely low
     if (Math.abs(this.wagonSpeed) < 0.001) {
       this.wagonSpeed = 0;
@@ -263,8 +258,8 @@ export class MyScene extends CGFscene {
 
     // Calculate new position based on speed and heading
     // (Using sin for X and cos for Z gives standard tank/car controls)
-    this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * elapsed / 10000;
-    this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * elapsed / 10000;
+    this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed;
+    this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed;
 
     this.wagon.updateWheelAngle(this.wagonSpeed);
   }

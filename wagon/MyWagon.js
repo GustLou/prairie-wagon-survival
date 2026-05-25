@@ -7,7 +7,7 @@ import { MyWheel } from './MyWheel.js';
 import { CGFobjModel } from "../extra-libs/CGFobjModel.js";
 
 export class MyWagon extends CGFobject {
-  constructor(scene, woodTexture, clothTexture, numPlanks = 3, plankHeight = 0.5, taper = -0.1, baseWidth = 2, baseLength = 2.5, plankSpace = 0.01, wheelWidth = 0.1, wheelSpeed = 1) {
+  constructor(scene, woodTexture, clothTexture, numPlanks = 3, plankHeight = 0.5, taper = -0.1, baseWidth = 2, baseLength = 2.5, plankSpace = 0.01, wheelWidth = 0.1, wheelSpeed = Math.PI) {
     super(scene);
 
     this.hayCount = 2;
