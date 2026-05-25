@@ -14,6 +14,7 @@ import { MyGrass } from "./MyGrass.js";
 import { MyLSTree } from "./tree/MyLSTree.js";
 import { MyLSFlower } from "./tree/MyLSFlower.js";
 import { MyHay } from "./hay/MyHay.js";
+import { MyWagon } from "./wagon/MyWagon.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -137,7 +138,8 @@ export class MyScene extends CGFscene {
     this.displayFlower    = this.displayAll;
     this.displayGrass     = this.displayAll;
     this.displayRock      = this.displayAll;
-    this.displayHay       = true;
+    this.displayHay       = this.displayAll;
+    this.displayWagon     = true;
 
     this.pathWidth = 0.03;
 
@@ -171,6 +173,9 @@ export class MyScene extends CGFscene {
       this,
       'textures/haystack.png',
     );
+
+    this.wagonScaleFactor = 0.35;
+    this.wagon = new MyWagon(this, "textures/wood.jpeg", "textures/cloth.jpg");
 
     this.generateTrees();
     this.generateFlowers();
@@ -750,6 +755,14 @@ makeRng(seed) {
           this.hay.display();
         this.popMatrix();
       }
+    }
+
+    if (this.displayWagon) {
+      this.pushMatrix();
+        this.multMatrix(sca);
+        this.scale(this.wagonScaleFactor, this.wagonScaleFactor, this.wagonScaleFactor);
+        this.wagon.display();
+      this.popMatrix();
     }
   }
 

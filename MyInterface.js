@@ -112,6 +112,11 @@ export class MyInterface extends CGFinterface {
     rockFolder.add(this.scene, 'rockMinDistanceToPath').name('Min Distance to Path');
     rockFolder.add(this.scene, 'rockScaleFactor').name('Scale Factor');
     rockFolder.add(actions, 'generateRocks').name('Generate Layout');
+
+    const wagonFolder = this.gui.addFolder('Wagon');
+    wagonFolder.add(this.scene, 'displayWagon').name('Display');
+    wagonFolder.add(this.scene, 'wagonScaleFactor').name('Scale Factor');
+
     return true;
     }
 }
