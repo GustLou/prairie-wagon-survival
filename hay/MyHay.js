@@ -49,7 +49,7 @@ export class MyHay extends CGFobject {
     this.arrowShader.setUniformsValues({ uBob: bob });
   }
 
-  display() {
+  display(arrow = true) {
     // ---- Bale body ----
     this.scene.pushMatrix();
     this.scene.translate(0, 0.5, 0);
@@ -57,6 +57,7 @@ export class MyHay extends CGFobject {
     this.bale.display();
     this.scene.popMatrix();
 
+    if (!arrow) return;
     // ---- Arrow indicator ----
     // Rotate 180° around X so the apex points downward.
     // The bob translation is handled inside the vertex shader.

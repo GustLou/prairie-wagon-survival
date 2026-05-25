@@ -7,8 +7,10 @@ import { MyWheel } from './MyWheel.js';
 import { CGFobjModel } from "../extra-libs/CGFobjModel.js";
 
 export class MyWagon extends CGFobject {
-  constructor(scene, woodTexture, clothTexture, numPlanks = 3, plankHeight = 0.5, taper = -0.1, baseWidth = 2, baseLength = 4, plankSpace = 0.01, wheelWidth = 0.1, wheelSpeed = 1) {
+  constructor(scene, woodTexture, clothTexture, numPlanks = 3, plankHeight = 0.5, taper = -0.1, baseWidth = 2, baseLength = 2.5, plankSpace = 0.01, wheelWidth = 0.1, wheelSpeed = 1) {
     super(scene);
+
+    this.hayCount = 2;
 
     if (woodTexture) {
       this.woodMaterial = new CGFappearance(scene);
@@ -47,17 +49,33 @@ export class MyWagon extends CGFobject {
     this.initAng2 = Math.random() * 2 * Math.PI;
     this.initAng3 = Math.random() * 2 * Math.PI;
     
-    const interceptingPlank = Math.round(numPlanks*0.6);
+    // wall math
+    let h = numPlanks * (plankHeight + plankSpace);
 
-    let h = interceptingPlank * (plankHeight + plankSpace);
-
-    let dw = (1 - Math.pow(1-taper, interceptingPlank)) * baseWidth;
+    // Assuming symmetrical taper along the length of the wagon
+    let dw = (1 - Math.pow(1-taper, numPlanks)) * (baseLength / 2);
     this.backAng = Math.PI / 2 - Math.atan2(h, dw);
+
+    let dl = (1 - Math.pow(1-taper, numPlanks)) * (baseWidth / 2);
+    this.sideAng = Math.PI / 2 - Math.atan2(h, dl);
+
+    // cloth math
+    this.totalHeight = this.numPlanks * this.plankHeight;
+    this.topExcessWidth = -this.totalHeight * Math.tan(this.sideAng);
+    this.topExcessLength = -this.totalHeight * Math.tan(this.backAng);
+
+    this.clothWidth = this.baseWidth + (2 * this.topExcessWidth);
+    this.clothLength = this.baseLength + (2 * this.topExcessLength);
+
+    this.wheelBaseWidth = this.baseWidth + this.topExcessWidth; // halfway
+
+    this.yOffset = this.baseLength / this.clothLength;
 
     this.back = new WagonWall(scene, numPlanks, baseWidth, plankHeight, taper, plankSpace);
     this.side = new WagonWall(scene, numPlanks, baseLength, plankHeight, taper, plankSpace);
     this.floor = new MyQuad(scene);
-    this.tongue = new MyTongue(scene, 0.08, 0.05, 3.0);
+    this.tongue = new MyTongue(scene, 0.08, 0.05, 3);
+    this.axis = new MyTongue(scene, 0.08, 0.05, this.clothWidth);
     this.wheel = new MyWheel(scene, 8, 2, 1, this.wheelWidth);
     this.cloth = new MyHalfCylinder(scene);
     this.horse = new CGFobjModel(this.scene, 'obj-models/horse.obj');
@@ -67,7 +85,9 @@ export class MyWagon extends CGFobject {
     if (this.woodTexture) this.woodMaterial.apply();
 
     // front wall
+    this.scene.rotate(-this.backAng, 1, 0, 0);
     this.back.display();
+    this.scene.rotate(this.backAng, 1, 0, 0);
     
     // slanted back wall
     this.scene.translate(0, 0, -this.baseLength);
@@ -89,10 +109,14 @@ export class MyWagon extends CGFobject {
     this.scene.translate(0, 0, -this.baseLength/2);
     this.scene.rotate(Math.PI / 2, 0, 1, 0);
       this.scene.translate(0, 0, this.baseWidth/2);
+      this.scene.rotate(-this.sideAng, 1, 0, 0);
       this.side.display();
+      this.scene.rotate(this.sideAng, 1, 0, 0);
 
       this.scene.translate(0, 0, -this.baseWidth);
+      this.scene.rotate(this.sideAng, 1, 0, 0);
       this.side.display();
+      this.scene.rotate(-this.sideAng, 1, 0, 0);
       this.scene.translate(0, 0, this.baseWidth/2);
     this.scene.rotate(-Math.PI / 2, 0, 1, 0);
     this.scene.translate(0, 0, this.baseLength/2);
@@ -100,29 +124,37 @@ export class MyWagon extends CGFobject {
     // wheels
     this.scene.rotate(Math.PI / 2, 0, 0, 1);
       this.scene.rotate(-this.wheelAng, 0, 1, 0);
-      this.scene.translate(0, -this.wheelWidth -this.baseWidth/2, 0);
+      this.scene.translate(0, -this.wheelWidth*1.5 -this.wheelBaseWidth/2, 0); // the wheels were offset by half their width ???
+        this.scene.rotate(-Math.PI/2, 1, 0, 0);
+        this.axis.display();
+        this.scene.rotate(Math.PI/2, 1, 0, 0);
+        
         this.scene.rotate(this.initAng0, 0, 1, 0);
         this.wheel.display();
         this.scene.rotate(-this.initAng0, 0, 1, 0);
-      this.scene.translate(0,this.baseWidth + this.wheelWidth*2,0 );
+      this.scene.translate(0,this.wheelBaseWidth + this.wheelWidth*2,0 );
         this.scene.rotate(this.initAng1, 0, 1, 0);
         this.wheel.display();
         this.scene.rotate(-this.initAng1, 0, 1, 0);
-      this.scene.translate(0,-this.wheelWidth-this.baseWidth/2,0);
+      this.scene.translate(0,-this.wheelWidth-this.wheelBaseWidth/2,0);
       this.scene.rotate(this.wheelAng, 0, 1, 0);
     this.scene.translate(0, 0, -this.baseLength);
       this.scene.rotate(-this.wheelAng, 0, 1, 0);
-      this.scene.translate(0, -this.wheelWidth -this.baseWidth/2, 0);
+      this.scene.translate(0, -this.wheelWidth -this.wheelBaseWidth/2, 0);
+        this.scene.rotate(-Math.PI/2, 1, 0, 0);
+        this.axis.display();
+        this.scene.rotate(Math.PI/2, 1, 0, 0);
+        
         this.scene.rotate(this.initAng2, 0, 1, 0);
         this.wheel.display();
         this.scene.rotate(-this.initAng2, 0, 1, 0);
-      this.scene.translate(0,this.baseWidth + this.wheelWidth*2,0 );
+      this.scene.translate(0,this.wheelBaseWidth + this.wheelWidth*2,0 );
         this.scene.rotate(this.initAng3, 0, 1, 0);
         this.wheel.display();
         this.scene.rotate(-this.initAng3, 0, 1, 0);
-      this.scene.translate(0,-this.wheelWidth-this.baseWidth/2,0);
+      this.scene.translate(0,-this.wheelWidth-this.wheelBaseWidth/2,0);
       this.scene.rotate(this.wheelAng, 0, 1, 0);
-    this.scene.translate(0, 0, this.baseLength);
+    this.scene.translate(0, this.wheelWidth/2, this.baseLength);
     this.scene.rotate(-Math.PI / 2, 0, 0, 1);
 
 
@@ -134,19 +166,31 @@ export class MyWagon extends CGFobject {
 
     // cloth
     if (this.clothTexture) this.clothMaterial.apply();
-    this.scene.scale(this.baseWidth, 4, this.baseLength/2)
+
+    this.scene.scale(this.clothWidth, 4, this.clothLength / 2);
     this.scene.rotate(Math.PI / 2, 1, 0, 0);
-    this.scene.translate(0, -0.5, 0);
-    this.scene.translate(0, -this.baseLength/this.baseLength/2, -this.numPlanks*this.plankHeight/this.baseLength); // /this.baseLength to offset the scale
+    
+    // Apply the dynamic yOffset to lock the center in place
+    this.scene.translate(0, -this.yOffset, -this.totalHeight / 4); 
+    
     this.scene.rotate(Math.PI, 0, 1, 0);
       this.cloth.display();
     this.scene.rotate(-Math.PI, 0, 1, 0);
-    this.scene.translate(0, this.baseLength/this.baseLength/2, this.numPlanks*this.plankHeight/this.baseLength);    
-    this.scene.translate(0, 0.5, 0);
+    
+    // Undoing the transformations cleanly
+    this.scene.translate(0, this.yOffset, this.totalHeight / 4); 
     this.scene.rotate(-Math.PI / 2, 1, 0, 0);
-    this.scene.scale(1/this.baseWidth, 0.25, 2/this.baseLength);
+    this.scene.scale(1 / this.clothWidth, 0.25, 2 / this.clothLength);
 
-    // TODO: hays
+    // hays
+    let offset = 0.6;
+    this.scene.translate(0, 0, -0.6);
+    for (let i = 0; i < this.hayCount; i++) {
+      this.scene.hay.display(false);
+      this.scene.translate(0, 0, -1.2);
+      offset += 1.2;
+    }
+    this.scene.translate(0, 0, offset);
   }
 
   updateWheelAngle(speed) {

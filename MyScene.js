@@ -263,8 +263,8 @@ export class MyScene extends CGFscene {
 
     // Calculate new position based on speed and heading
     // (Using sin for X and cos for Z gives standard tank/car controls)
-    this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed;
-    this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed;
+    this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * elapsed / 10000;
+    this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * elapsed / 10000;
 
     this.wagon.updateWheelAngle(this.wagonSpeed);
   }
