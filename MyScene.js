@@ -15,6 +15,7 @@ import { MyLSTree } from "./tree/MyLSTree.js";
 import { MyLSFlower } from "./tree/MyLSFlower.js";
 import { MyHay } from "./hay/MyHay.js";
 import { MyWagon } from "./wagon/MyWagon.js";
+// import { MyArrow } from "./hay/MyArrow.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -175,6 +176,14 @@ export class MyScene extends CGFscene {
       'textures/haystack.png',
     );
 
+    // this.arrow = new MyArrow(this);
+
+    // this.arrowShader = new CGFshader(
+    //   this.gl,
+    //   "shaders/arrow.vert",
+    //   "shaders/arrow.frag",
+    // );
+
     this.wagonScaleFactor = 0.35;
     this.wagon = new MyWagon(this, "textures/wood.jpeg", "textures/cloth.jpg");
 
@@ -245,7 +254,20 @@ export class MyScene extends CGFscene {
 
     this._cloudTime = (elapsed / 1000.0) * this.cloudSpeed;
     this.windShader.setUniformsValues({ uTime: elapsed / 1000.0 }); // seconds
-    this.hay.update(elapsed);
+    
+    // // 1. Set the duration for a full up-and-down loop (e.g., 4000ms = 4 seconds)
+    // // This creates a linear timer value running from 0.0 to 2.0
+    // const cycle = (t % 3000) / 2000;
+
+    // // 2. Turn it into a straight-lined triangle bounce between 0.0 and 1.0
+    // const triangle = Math.abs(cycle - 1.0);
+
+    // // 3. Scale it to your original [-0.2, 0.2] bounce range
+    // // Because this uses absolute linear values instead of trigonometry,
+    // // the speed is 100% constant throughout the entire movement.
+    // const bob = (triangle * 2.0 - 1.0) * 0.2;
+
+    // this.arrowShader.setUniformsValues({ uBob: bob });
 
     this.checkKeys();
 
@@ -826,6 +848,35 @@ makeRng(seed) {
           this.hay.display();
         this.popMatrix();
       }
+
+      // // second loop to avoid changing shaders for every hay/arrow couple
+      // for (let i = 0; i < this.hayPositions.length; i++) {
+      //   const pos = this.hayPositions[i];
+      //   const wx = pos.normX * this.groundScale;
+      //   const wz = pos.normZ * this.groundScale;
+
+      //   // Sample all 4 corners of the bale footprint and use the highest point,
+      //   // so the bale sits on top of the terrain even on steep slopes.
+      //   const hw = 0.75 * this.hayScaleFactor; // half of bale width  (1.5 * scale / 2)
+      //   const hd = 0.5  * this.hayScaleFactor; // half of bale depth  (1.0 * scale / 2)
+      //   const wy = Math.max(
+      //     this.terrainHeight(wx,      wz     ),
+      //     this.terrainHeight(wx + hw, wz + hd),
+      //     this.terrainHeight(wx - hw, wz + hd),
+      //     this.terrainHeight(wx + hw, wz - hd),
+      //     this.terrainHeight(wx - hw, wz - hd),
+      //   );
+
+      //   this.pushMatrix();
+      //     this.setActiveShader(this.arrowShader);
+      //     this.multMatrix(sca);
+      //     this.translate(wx, wy, wz);
+      //     this.rotate(pos.rotation, 0, 1, 0);
+      //     this.scale(this.hayScaleFactor, this.hayScaleFactor, this.hayScaleFactor);
+      //     this.arrow.display();
+      //   this.popMatrix();
+      //   this.setActiveShader(this.defaultShader);
+      // }
     }
 
     if (this.displayWagon) {
@@ -843,9 +894,12 @@ makeRng(seed) {
       const frontZ = this.wagonPosition.z;
       const backX  = frontX - (fX * wagonLength);
       const backZ  = frontZ - (fZ * wagonLength);
+      const horseX = frontX + 3*fX;
+      const horseZ = frontZ + 3*fZ;
       
       const hFront = wy;
       const hBack  = this.terrainHeight(backX, backZ);
+      const hHorse = this.terrainHeight(horseX, horseZ);
 
       const centerX = frontX - (fX * wagonLength / 2);
       const centerZ = frontZ - (fZ * wagonLength / 2);
@@ -860,7 +914,8 @@ makeRng(seed) {
 
       const pitch = Math.atan2(hFront - hBack, wagonLength);
       const roll = Math.atan2(hRight - hLeft, wagonHalfWidth * 2);
-
+      const horsePitch = -Math.atan2(hHorse - hFront, 3);
+      
       this.pushMatrix();
         this.multMatrix(sca);
         
@@ -873,7 +928,7 @@ makeRng(seed) {
         
         this.scale(this.wagonScaleFactor, this.wagonScaleFactor, this.wagonScaleFactor);
         
-        this.wagon.display();
+        this.wagon.display(horsePitch);
       this.popMatrix();
     }
   }

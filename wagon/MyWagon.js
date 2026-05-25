@@ -7,7 +7,7 @@ import { MyWheel } from './MyWheel.js';
 import { CGFobjModel } from "../extra-libs/CGFobjModel.js";
 
 export class MyWagon extends CGFobject {
-  constructor(scene, woodTexture, clothTexture, numPlanks = 3, plankHeight = 0.5, taper = -0.1, baseWidth = 2, baseLength = 2.5, plankSpace = 0.01, wheelWidth = 0.1, wheelSpeed = Math.PI) {
+  constructor(scene, woodTexture, clothTexture, numPlanks = 3, plankHeight = 0.5, taper = -0.1, baseWidth = 2, baseLength = 2.5, plankSpace = 0.01, wheelWidth = 0.1, wheelSpeed = Math.PI, tongueLength = 3) {
     super(scene);
 
     this.hayCount = 2;
@@ -44,6 +44,7 @@ export class MyWagon extends CGFobject {
     this.wheelAng = 0;
     this.wheelWidth = wheelWidth;
     this.wheelSpeed = wheelSpeed;
+    this.tongueLength = tongueLength;
     this.initAng0 = Math.random() * 2 * Math.PI;
     this.initAng1 = Math.random() * 2 * Math.PI;
     this.initAng2 = Math.random() * 2 * Math.PI;
@@ -74,14 +75,14 @@ export class MyWagon extends CGFobject {
     this.back = new WagonWall(scene, numPlanks, baseWidth, plankHeight, taper, plankSpace);
     this.side = new WagonWall(scene, numPlanks, baseLength, plankHeight, taper, plankSpace);
     this.floor = new MyQuad(scene);
-    this.tongue = new MyTongue(scene, 0.08, 0.05, 3);
+    this.tongue = new MyTongue(scene, 0.08, 0.05, tongueLength);
     this.axis = new MyTongue(scene, 0.08, 0.05, this.clothWidth);
     this.wheel = new MyWheel(scene, 8, 2, 1, this.wheelWidth);
     this.cloth = new MyHalfCylinder(scene);
-    this.horse = new CGFobjModel(this.scene, 'obj-models/horse.obj');
+    this.horse = new CGFobjModel(this.scene, 'obj-models/horse3.obj');
   }
 
-  display() {
+  display(horseAngle) {
     if (this.woodTexture) this.woodMaterial.apply();
 
     // front wall
@@ -159,10 +160,24 @@ export class MyWagon extends CGFobject {
 
 
     // tongue
+    this.scene.rotate(horseAngle, 1, 0, 0);
     this.tongue.display();
 
     // horses
-    // this.horse.display();
+    this.scene.rotate(Math.PI / 2, 0, 1, 0);
+    this.scene.scale(0.4, 0.4, 0.4)
+    this.scene.translate(-this.tongueLength - 5,0,0);
+
+    this.scene.translate(0, 0, this.baseWidth);
+    this.horse.display();
+    this.scene.translate(0, 0, -this.baseWidth*2);
+    this.horse.display();
+    this.scene.translate(0, 0, this.baseWidth);
+    
+    this.scene.translate(this.tongueLength + 5,0,0);
+    this.scene.scale(2.5, 2.5, 2.5);
+    this.scene.rotate(-Math.PI / 2, 0, 1, 0);
+    this.scene.rotate(-horseAngle, 1, 0, 0);
 
     // cloth
     if (this.clothTexture) this.clothMaterial.apply();
