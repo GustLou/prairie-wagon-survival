@@ -177,6 +177,15 @@ export class MyScene extends CGFscene {
     this.wagonScaleFactor = 0.35;
     this.wagon = new MyWagon(this, "textures/wood.jpeg", "textures/cloth.jpg");
 
+    this.wagonPosition = { x: 0, z: 0 }; // Starting coordinates
+    this.wagonAngle = 0;                 // Current heading (rotation on Y axis)
+    this.wagonSpeed = 0;                 // Current velocity
+    
+    this.wagonMaxSpeed = 0.2;            // Maximum speed limit
+    this.wagonAcceleration = 0.01;       // How fast it accelerates per frame
+    this.wagonFriction = 0.92;           // Friction to slow it down when keys are released
+    this.wagonTurnRate = 0.6;            // Base turn rate (will be multiplied by speed)
+
     this.generateTrees();
     this.generateFlowers();
     this.generateRocks();
@@ -237,7 +246,50 @@ export class MyScene extends CGFscene {
     this._cloudTime = (elapsed / 1000.0) * this.cloudSpeed;
     this.windShader.setUniformsValues({ uTime: elapsed / 1000.0 }); // seconds
     this.hay.update(elapsed);
+
+    this.checkKeys();
+
+    // Apply friction to gradually slow down the wagon
+    this.wagonSpeed *= this.wagonFriction;
+
+    // Clamp to maximum speed
+    if (this.wagonSpeed > this.wagonMaxSpeed) this.wagonSpeed = this.wagonMaxSpeed;
+    if (this.wagonSpeed < -this.wagonMaxSpeed) this.wagonSpeed = -this.wagonMaxSpeed;
+
+    // Stop micro-sliding when speed is extremely low
+    if (Math.abs(this.wagonSpeed) < 0.001) {
+      this.wagonSpeed = 0;
+    }
+
+    // Calculate new position based on speed and heading
+    // (Using sin for X and cos for Z gives standard tank/car controls)
+    this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed;
+    this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed;
+
+    this.wagon.updateWheelAngle(this.wagonSpeed);
   }
+
+  checkKeys() {
+    // Accelerate forward
+    if (this.gui.isKeyPressed("KeyW")) {
+      this.wagonSpeed += this.wagonAcceleration;
+    }
+    // Decelerate / Reverse
+    if (this.gui.isKeyPressed("KeyS")) {
+      this.wagonSpeed -= this.wagonAcceleration;
+    }
+
+    // Steer (Curve trajectory)
+    // By multiplying by this.wagonSpeed, the wagon CANNOT rotate in place. 
+    // It also naturally reverses the steering direction if you are backing up!
+    if (this.gui.isKeyPressed("KeyA")) {
+      this.wagonAngle += this.wagonTurnRate * this.wagonSpeed;
+    }
+    if (this.gui.isKeyPressed("KeyD")) {
+      this.wagonAngle -= this.wagonTurnRate * this.wagonSpeed;
+    }
+  }
+
 
   // CPU replicas of terrain.vert noise/fbm — used to place grass at correct height
   // we are simply replicating what was done in the vert shader to sync the poisition of the objects with the ground
@@ -758,9 +810,50 @@ makeRng(seed) {
     }
 
     if (this.displayWagon) {
+      let wy = this.terrainHeight(this.wagonPosition.x, this.wagonPosition.z);
+
+      const wagonLength = 1.0;      // Distance from front to back
+      const wagonHalfWidth = 0.5;   // Distance from center to left/right side
+
+      const fX = Math.sin(this.wagonAngle); // Forward X
+      const fZ = Math.cos(this.wagonAngle); // Forward Z
+      const rX = Math.cos(this.wagonAngle); // Right X
+      const rZ = -Math.sin(this.wagonAngle);// Right Z
+
+      const frontX = this.wagonPosition.x;
+      const frontZ = this.wagonPosition.z;
+      const backX  = frontX - (fX * wagonLength);
+      const backZ  = frontZ - (fZ * wagonLength);
+      
+      const hFront = wy;
+      const hBack  = this.terrainHeight(backX, backZ);
+
+      const centerX = frontX - (fX * wagonLength / 2);
+      const centerZ = frontZ - (fZ * wagonLength / 2);
+
+      const rightX = centerX + (rX * wagonHalfWidth);
+      const rightZ = centerZ + (rZ * wagonHalfWidth);
+      const leftX  = centerX - (rX * wagonHalfWidth);
+      const leftZ  = centerZ - (rZ * wagonHalfWidth);
+
+      const hRight = this.terrainHeight(rightX, rightZ);
+      const hLeft  = this.terrainHeight(leftX, leftZ);
+
+      const pitch = Math.atan2(hFront - hBack, wagonLength);
+      const roll = Math.atan2(hRight - hLeft, wagonHalfWidth * 2);
+
       this.pushMatrix();
         this.multMatrix(sca);
+        
+        this.translate(frontX, wy + 0.4, frontZ);
+        
+        this.rotate(this.wagonAngle, 0, 1, 0); 
+
+        this.rotate(-pitch, 1, 0, 0);
+        this.rotate(roll, 0, 0, 1);
+        
         this.scale(this.wagonScaleFactor, this.wagonScaleFactor, this.wagonScaleFactor);
+        
         this.wagon.display();
       this.popMatrix();
     }

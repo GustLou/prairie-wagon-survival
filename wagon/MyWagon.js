@@ -7,7 +7,7 @@ import { MyWheel } from './MyWheel.js';
 import { CGFobjModel } from "../extra-libs/CGFobjModel.js";
 
 export class MyWagon extends CGFobject {
-  constructor(scene, woodTexture, clothTexture, numPlanks = 3, plankHeight = 0.5, taper = -0.1, baseWidth = 2, baseLength = 4, plankSpace = 0.01) {
+  constructor(scene, woodTexture, clothTexture, numPlanks = 3, plankHeight = 0.5, taper = -0.1, baseWidth = 2, baseLength = 4, plankSpace = 0.01, wheelWidth = 0.1, wheelSpeed = 1) {
     super(scene);
 
     if (woodTexture) {
@@ -40,7 +40,8 @@ export class MyWagon extends CGFobject {
     this.plankSpace = plankSpace;
     this.taper = taper;
     this.wheelAng = 0;
-    this.wheelWidth = 0.1;
+    this.wheelWidth = wheelWidth;
+    this.wheelSpeed = wheelSpeed;
     this.initAng0 = Math.random() * 2 * Math.PI;
     this.initAng1 = Math.random() * 2 * Math.PI;
     this.initAng2 = Math.random() * 2 * Math.PI;
@@ -65,8 +66,6 @@ export class MyWagon extends CGFobject {
   display() {
     if (this.woodTexture) this.woodMaterial.apply();
 
-    if (this.wheelAng < 2 * Math.PI) this.wheelAng += 0.1;
-    else this.wheelAng = 0;
     // front wall
     this.back.display();
     
@@ -102,17 +101,25 @@ export class MyWagon extends CGFobject {
     this.scene.rotate(Math.PI / 2, 0, 0, 1);
       this.scene.rotate(-this.wheelAng, 0, 1, 0);
       this.scene.translate(0, -this.wheelWidth -this.baseWidth/2, 0);
-      this.wheel.display();
+        this.scene.rotate(this.initAng0, 0, 1, 0);
+        this.wheel.display();
+        this.scene.rotate(-this.initAng0, 0, 1, 0);
       this.scene.translate(0,this.baseWidth + this.wheelWidth*2,0 );
-      this.wheel.display();
+        this.scene.rotate(this.initAng1, 0, 1, 0);
+        this.wheel.display();
+        this.scene.rotate(-this.initAng1, 0, 1, 0);
       this.scene.translate(0,-this.wheelWidth-this.baseWidth/2,0);
       this.scene.rotate(this.wheelAng, 0, 1, 0);
     this.scene.translate(0, 0, -this.baseLength);
       this.scene.rotate(-this.wheelAng, 0, 1, 0);
       this.scene.translate(0, -this.wheelWidth -this.baseWidth/2, 0);
-      this.wheel.display();
+        this.scene.rotate(this.initAng2, 0, 1, 0);
+        this.wheel.display();
+        this.scene.rotate(-this.initAng2, 0, 1, 0);
       this.scene.translate(0,this.baseWidth + this.wheelWidth*2,0 );
-      this.wheel.display();
+        this.scene.rotate(this.initAng3, 0, 1, 0);
+        this.wheel.display();
+        this.scene.rotate(-this.initAng3, 0, 1, 0);
       this.scene.translate(0,-this.wheelWidth-this.baseWidth/2,0);
       this.scene.rotate(this.wheelAng, 0, 1, 0);
     this.scene.translate(0, 0, this.baseLength);
@@ -140,5 +147,9 @@ export class MyWagon extends CGFobject {
     this.scene.scale(1/this.baseWidth, 0.25, 2/this.baseLength);
 
     // TODO: hays
+  }
+
+  updateWheelAngle(speed) {
+    this.wheelAng += this.wheelSpeed*speed;
   }
 }
