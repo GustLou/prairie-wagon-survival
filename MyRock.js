@@ -10,7 +10,7 @@ export class MyRock extends CGFobject {
         this.roughness = roughness;
 
         this.initBuffers();
-        this.initShader();
+        // this.initShader();
         this.initMaterial(texturePath0, texturePath1);
     }
 
@@ -50,21 +50,21 @@ export class MyRock extends CGFobject {
         this.initGLBuffers();
     }
 
-    initShader() {
-        this.rockShader = new CGFshader(
-            this.scene.gl,
-            'shaders/rock.vert',
-            'shaders/rock.frag'
-        );
-        this.rockShader.setUniformsValues({
-            uSeed:        this.seed,
-            uRoughness:   this.roughness,
-            uTexBlend:    0.0,
-            uSampler0:    0,
-            uSampler1:    1,
-            uLightDir:    [0.0, 0.8, 0.5]
-        });
-    }
+    // initShader() {
+    //     this.rockShader = new CGFshader(
+    //         this.scene.gl,
+    //         'shaders/rock.vert',
+    //         'shaders/rock.frag'
+    //     );
+    //     this.rockShader.setUniformsValues({
+    //         uSeed:        this.seed,
+    //         uRoughness:   this.roughness,
+    //         uTexBlend:    0.0,
+    //         uSampler0:    0,
+    //         uSampler1:    1,
+    //         uLightDir:    [0.0, 0.8, 0.5]
+    //     });
+    // }
 
     initMaterial(texturePath0, texturePath1) {
         this.rockAppearance = new CGFappearance(this.scene);
@@ -88,8 +88,8 @@ export class MyRock extends CGFobject {
 
     display() {
         this.rockAppearance.apply();
-        this.scene.setActiveShader(this.rockShader);
-        this.rockShader.setUniformsValues({ uSeed: this.seed });
+        // this.scene.setActiveShader(this.rockShader);
+        // this.rockShader.setUniformsValues({ uSeed: this.seed });
 
         if (this.tex1) {
             this.scene.gl.activeTexture(this.scene.gl.TEXTURE1);
@@ -98,6 +98,6 @@ export class MyRock extends CGFobject {
         }
 
         super.display();
-        this.scene.setActiveShader(this.scene.defaultShader);
+        // this.scene.setActiveShader(this.scene.defaultShader);
     }
 }
