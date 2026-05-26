@@ -179,7 +179,7 @@ export class MyScene extends CGFscene {
 
     this.hay = new MyHay(
       this,
-      'textures/haystack.png',
+      'textures/hay.jpg',
     );
 
     this.arrow = new MyArrow(this);
@@ -233,11 +233,33 @@ export class MyScene extends CGFscene {
     this.siloOffsetZ = -0.50;
     this.siloRadius  = 0.55;
     this.siloHeight  = 2.0;
-    this.siloHayLevel = 0.55;
+    this.siloHayLevel = 1.0;
     this.siloRotationOffset = 0; // GUI fine-tune knob (radians)
 
     this.silo = new MyHaySilo(this, this.siloRadius, this.siloHeight, 40, Math.PI / 3);
     this.displaySilo = true;
+
+    // ── Health / timer system ──────────────────────────────────────────────
+    // maxHealth is the total health budget in seconds (silo full = 2 min).
+    this.maxHealth      = 150;          // 2 minutes
+    this.health         = this.maxHealth;
+    this.hasStartedMoving = false;      // latches true on first wagon movement
+    this.gameElapsed    = 0;            // seconds since first move (counts UP)
+    this._dt            = 0;           // frame delta in seconds (shared with checkKeys)
+
+    // Read-only strings shown live in the GUI
+    this.healthDisplay  = this._formatTime(this.maxHealth);
+    this.elapsedDisplay = '0:00';
+
+    // ── Game state & overlay DOM refs ──────────────────────────────────────
+    // States: 'start' | 'playing' | 'gameover'
+    this.gameState = 'start';
+    this._startScreenEl    = document.getElementById('start-screen');
+    this._gameoverScreenEl = document.getElementById('gameover-screen');
+    this._gameoverTimeEl   = document.getElementById('gameover-time');
+
+    // Clicking the start card also starts the game (same as any key press)
+    this._startScreenEl.addEventListener('click', () => this.startGame());
   }
 
   /**
@@ -358,6 +380,11 @@ export class MyScene extends CGFscene {
     if (this._startTime === undefined) this._startTime = t;
     const elapsed = t - this._startTime; // ms since scene start
 
+    // ── Per-frame delta time (seconds, capped to avoid huge jumps on tab switch)
+    if (this._lastT === undefined) this._lastT = t;
+    this._dt = Math.min((t - this._lastT) / 1000, 0.1);
+    this._lastT = t;
+
     this._cloudTime = (elapsed / 1000.0) * this.cloudSpeed;
     this.windShader.setUniformsValues({ uTime: elapsed / 1000.0 }); // seconds
     
@@ -375,24 +402,47 @@ export class MyScene extends CGFscene {
 
     this.arrowShader.setUniformsValues({ uBob: bob });
 
-    this.checkKeys();
+    // Only run gameplay logic while actually playing
+    if (this.gameState === 'playing') {
+      this.checkKeys();
 
-    // Apply friction to gradually slow down the wagon
-    this.wagonSpeed *= this.wagonFriction;
+      // ── Health / timer tick ─────────────────────────────────────────────
+      // Latch first movement (checked after checkKeys so speed is already updated).
+      if (!this.hasStartedMoving && Math.abs(this.wagonSpeed) > 0.001) {
+        this.hasStartedMoving = true;
+      }
+      if (this.hasStartedMoving) {
+        this.gameElapsed += this._dt;
+        this.health = Math.max(0, this.health - this._dt);
+        this._syncSiloToHealth();
 
-    // Stop micro-sliding when speed is extremely low
-    if (Math.abs(this.wagonSpeed) < 0.001) {
-      this.wagonSpeed = 0;
+        // ── Game over: health and silo both hit 0 ────────────────────────
+        if (this.health <= 0) {
+          this.triggerGameOver();
+        }
+      }
+      this.healthDisplay  = this._formatTime(this.health);
+      this.elapsedDisplay = this._formatTime(this.gameElapsed);
     }
 
-    // Calculate new position based on speed and heading
-    // (Using sin for X and cos for Z gives standard tank/car controls)
-    this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed;
-    this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed;
+    if (this.gameState === 'playing') {
+      // Apply friction to gradually slow down the wagon
+      this.wagonSpeed *= this.wagonFriction;
 
-    this.wagon.updateWheelAngle(this.wagonSpeed);
+      // Stop micro-sliding when speed is extremely low
+      if (Math.abs(this.wagonSpeed) < 0.001) {
+        this.wagonSpeed = 0;
+      }
 
-    if (this.followCamera) this.updateCamera();
+      // Calculate new position based on speed and heading
+      // (Using sin for X and cos for Z gives standard tank/car controls)
+      this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed;
+      this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed;
+
+      this.wagon.updateWheelAngle(this.wagonSpeed);
+
+      if (this.followCamera) this.updateCamera();
+    }
   }
 
   updateCamera() {
@@ -451,8 +501,100 @@ export class MyScene extends CGFscene {
     if (this.gui.isKeyPressed("KeyQ")) {
       this.wagon.updateHayCount(this.wagon.hayCount - 1);
     }
+
+    // ── Health test keys (single-press, +10 / -10 seconds) ───────────────
+    const uDown = this.gui.isKeyPressed('KeyU');
+    if (uDown && !this._prevKeyU) this.addHealth(20);
+    this._prevKeyU = uDown;
+
+    const iDown = this.gui.isKeyPressed('KeyI');
+    if (iDown && !this._prevKeyI) this.removeHealth(10);
+    this._prevKeyI = iDown;
   }
 
+
+  // ── Health system helpers ────────────────────────────────────────────────
+
+  /**
+   * Increase health by `amount` seconds (capped at maxHealth).
+   * Call this when the wagon delivers hay to the barn (future), or from U key.
+   */
+  addHealth(amount = 10) {
+    this.health = Math.min(this.maxHealth, this.health + amount);
+    this._syncSiloToHealth();
+  }
+
+  /**
+   * Decrease health by `amount` seconds (floored at 0).
+   * Call this on collision damage (future), or from I key.
+   */
+  removeHealth(amount = 10) {
+    this.health = Math.max(0, this.health - amount);
+    this._syncSiloToHealth();
+  }
+
+  /** Keep siloHayLevel in [0,1] in lock-step with the health countdown. */
+  _syncSiloToHealth() {
+    this.siloHayLevel = this.health / this.maxHealth;
+  }
+
+  /** Format a number of seconds as "M:SS". */
+  _formatTime(seconds) {
+    const s = Math.max(0, seconds);
+    const m = Math.floor(s / 60);
+    const ss = Math.floor(s % 60);
+    return `${m}:${ss.toString().padStart(2, '0')}`;
+  }
+
+  // ── Game state transitions ───────────────────────────────────────────────
+
+  /** Called when the player dismisses the start screen. */
+  startGame() {
+    if (this.gameState !== 'start') return;
+    this.gameState = 'playing';
+    this._startScreenEl.classList.add('hidden');
+  }
+
+  /** Called when health reaches 0 — shows the game over screen. */
+  triggerGameOver() {
+    if (this.gameState !== 'playing') return;
+    this.gameState = 'gameover';
+    this._gameoverTimeEl.textContent = this._formatTime(this.gameElapsed);
+    this._gameoverScreenEl.classList.remove('hidden');
+  }
+
+  /**
+   * Resets all game state and regenerates the world, then returns to the
+   * start screen.  Called by pressing R on the game over screen.
+   */
+  resetGame() {
+    if (this.gameState !== 'gameover') return;
+
+    // Reset health & timers
+    this.health           = this.maxHealth;
+    this.gameElapsed      = 0;
+    this.hasStartedMoving = false;
+    this.healthDisplay    = this._formatTime(this.maxHealth);
+    this.elapsedDisplay   = '0:00';
+    this._syncSiloToHealth();
+
+    // Reset wagon
+    this.wagonPosition = { x: 0, z: 0 };
+    this.wagonAngle    = 0;
+    this.wagonSpeed    = 0;
+
+    // Regenerate the world
+    this.generateTrees();
+    this.generateFlowers();
+    this.generateRocks();
+    this.generateHay();
+    this.rebuildGrass();
+
+    // Show start screen again
+    this._gameoverScreenEl.classList.add('hidden');
+    this._startScreenEl.classList.remove('hidden');
+    this.gameState = 'start';
+  }
 
   // CPU replicas of terrain.vert noise/fbm — used to place grass at correct height
   // we are simply replicating what was done in the vert shader to sync the poisition of the objects with the ground
