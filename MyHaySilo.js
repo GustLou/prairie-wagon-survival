@@ -258,7 +258,7 @@ export class MyHaySilo extends CGFobject {
         this.wall = new SiloWallShell(
             scene,
             Math.max(8, Math.round(slices * (1 - gapAngle / (Math.PI * 2)))),
-            gapAngle / 2,
+            gapAngle / 3.5,
             Math.PI * 2 - gapAngle / 2,
             radius,
             height,

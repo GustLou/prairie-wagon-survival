@@ -48,14 +48,26 @@ export class MyScene extends CGFscene {
     // Ground controls
     this.ground = new MyPlane(this, 50);
     this.groundScale = 45;
-    this.pathWidth = 0.03;
+    this.pathWidth = 0.02;
     this.uHeightScale = 0.13;
+
+    // Build the CPU height grid (and upload its GPU copy) immediately so that
+    // terrainHeight() works correctly for every generator call below.
+    this._initTerrainHeightmap();
 
     this.numPatches = 25; // number of patches center
     this.bladesPerPatch = 15; // density of each grass patch
     this.grassScaleFactor = 1.0;
 
-    this.pathNumPoints = 12;
+    // ── Barn / fence constants (defined early — needed for path generation) ──
+    this.barnX           = -16.0;
+    this.barnZ           = -16.0;
+    this.barnRotation    = Math.PI / 4;  // faces toward centre (0, 0)
+    this.barnScale       = 2.25;
+    this.fenceRadius     = 4.0;
+    this.fenceEntranceArc = Math.PI / 5;
+
+    this.pathNumPoints = 21;
     this.pathSeed = 0;
 
     // Restore saved path from a previous session if one exists
@@ -67,13 +79,14 @@ export class MyScene extends CGFscene {
     }
 
     // Path edges must exist before grass is generated so isOnPath works
-    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    const { fixedPoints: initFP, exclusionZones: initEZ } = this._computePathConfig();
+    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed, initFP, initEZ);
 
     this.rebuildGrass();
 
     // rock controls
     this.rocks = [];
-    this.numRocks = 8;
+    this.numRocks = 15;
     this.rockSpawnSeed  = 27.1;
     this.rockScaleFactor = 0.25;
     this.rockTexBlend = 0.5;
@@ -174,7 +187,7 @@ export class MyScene extends CGFscene {
     );
 
     this.hayScaleFactor = 0.3;
-    this.numHay = 8;
+    this.numHay = 5;             // always 5 bales, one per chosen path node
     this.hayMinDistanceToPath = 0.05;
 
     this.hay = new MyHay(
@@ -193,8 +206,10 @@ export class MyScene extends CGFscene {
     this.wagonScaleFactor = 0.35;
     this.wagon = new MyWagon(this, "textures/wood.jpeg", "textures/cloth.jpg");
 
-    this.wagonPosition = { x: 0, z: 0 }; // Starting coordinates
-    this.wagonAngle = 0;                 // Current heading (rotation on Y axis)
+    // Wagon spawns just outside the barn's fence entrance, aimed toward centre
+    const spawn = this._wagonSpawnPos();
+    this.wagonPosition = { x: spawn.x, z: spawn.z };
+    this.wagonAngle    = spawn.angle;
     this.wagonSpeed = 0;                 // Current velocity
     this.cameraSteeringHeight = 1;
     
@@ -208,19 +223,10 @@ export class MyScene extends CGFscene {
     this.generateHay();
 
     // --- Barn + circular fence ---
+    // (barnX/Z/Rotation/Scale/fenceRadius defined early above for path generation)
     this.barn = new MyBarn(this);
-
-    // Barn placement: x/z in world units (relative to the [-groundScale/2, +groundScale/2] map)
-    this.barnX = -6.0;
-    this.barnZ =  4.0;
-    this.barnRotation = Math.PI * 0.15; // a slight angle so it doesn't look axis-aligned
-    this.barnScale = 1.6;               // unit barn → final size multiplier
-
-    // Fence around the barn
-    this.fenceRadius = 3.2;
     this.fence = new MyCircularFence(this, this.barnX, this.barnZ, this.fenceRadius, 48);
     this.fenceIntersected = false; // GUI toggle for now; wagon collision will drive this later
-    this.fenceEntranceArc = Math.PI / 5; // ~36°: roughly one wagon's width
 
     this.displayBarn  = true;
     this.displayFence = true;
@@ -229,10 +235,10 @@ export class MyScene extends CGFscene {
     // Local offset (in the barn's un-rotated frame). +X is along the barn's
     // long axis. The silo lives next to the barn's right end, slightly back
     // — inside the fence.
-    this.siloOffsetX = 1.50;
-    this.siloOffsetZ = -0.50;
+    this.siloOffsetX = 1.25;
+    this.siloOffsetZ = 0.15;
     this.siloRadius  = 0.55;
-    this.siloHeight  = 2.0;
+    this.siloHeight  = 3.0;
     this.siloHayLevel = 1.0;
     this.siloRotationOffset = 0; // GUI fine-tune knob (radians)
 
@@ -513,6 +519,63 @@ export class MyScene extends CGFscene {
   }
 
 
+  // ── Barn / path / spawn helpers ─────────────────────────────────────────
+
+  /**
+   * Returns true when a world-space point is inside the fenced barn area
+   * (with a small buffer so nothing spawns right at the fence edge).
+   */
+  _isInsideFenceArea(wx, wz, buffer = 2.0) {
+    const dx = wx - this.barnX;
+    const dz = wz - this.barnZ;
+    const r  = this.fenceRadius + buffer;
+    return (dx * dx + dz * dz) < r * r;
+  }
+
+  /**
+   * Computes the two fixed UV-space path nodes that guarantee the MST path
+   * always has a branch leading directly to the barn entrance, plus the
+   * circular exclusion zone that keeps random nodes out of the fenced area.
+   */
+  _computePathConfig() {
+    const gS  = this.groundScale;
+    const sin = Math.sin(this.barnRotation);
+    const cos = Math.cos(this.barnRotation);
+
+    // Node A — just outside the fence entrance
+    const aWx = this.barnX + (this.fenceRadius + 1.5) * sin;
+    const aWz = this.barnZ + (this.fenceRadius + 1.5) * cos;
+
+    // Node B — further toward the centre, ensuring a clear path segment inward
+    const bWx = this.barnX + (this.fenceRadius + 6.0) * sin;
+    const bWz = this.barnZ + (this.fenceRadius + 6.0) * cos;
+
+    const toUV = (wx, wz) => [wx / gS + 0.5, wz / gS + 0.5];
+
+    return {
+      fixedPoints:    [toUV(aWx, aWz), toUV(bWx, bWz)],
+      exclusionZones: [{
+        cx: this.barnX / gS + 0.5,
+        cz: this.barnZ / gS + 0.5,
+        r:  (this.fenceRadius + 2.5) / gS,
+      }],
+    };
+  }
+
+  /**
+   * World-space position + heading for the wagon at (re)spawn time:
+   * just outside the fence entrance, pointed toward the centre.
+   */
+  _wagonSpawnPos() {
+    const sin = Math.sin(this.barnRotation);
+    const cos = Math.cos(this.barnRotation);
+    return {
+      x:     this.barnX + (this.fenceRadius + 1.0) * sin,
+      z:     this.barnZ + (this.fenceRadius + 1.0) * cos,
+      angle: this.barnRotation,   // wagon faces the same direction the barn front faces
+    };
+  }
+
   // ── Health system helpers ────────────────────────────────────────────────
 
   /**
@@ -578,9 +641,10 @@ export class MyScene extends CGFscene {
     this.elapsedDisplay   = '0:00';
     this._syncSiloToHealth();
 
-    // Reset wagon
-    this.wagonPosition = { x: 0, z: 0 };
-    this.wagonAngle    = 0;
+    // Reset wagon to spawn position in front of barn
+    const spawn = this._wagonSpawnPos();
+    this.wagonPosition = { x: spawn.x, z: spawn.z };
+    this.wagonAngle    = spawn.angle;
     this.wagonSpeed    = 0;
 
     // Regenerate the world
@@ -625,13 +689,66 @@ export class MyScene extends CGFscene {
     return v;
   }
 
-  // Returns the world-space Y height of the terrain at world position (wx, wz).
-  // Mirrors: float h = fbm(aVertexPosition.xy * 1.5); displaced.z += h * uHeightScale;
-  // then scaled by groundScale via the model matrix.
+  /**
+   * Precomputes a 256×256 height grid by evaluating _fbm() at every texel
+   * using the same UV→local-coord mapping the vertex shader uses, then uploads
+   * it as a WebGL LUMINANCE texture (unit 1).  Both the GPU shader and the CPU
+   * sampler below use this identical data, so there is no float32/float64
+   * precision mismatch and objects sit exactly on the terrain.
+   *
+   * Must be called after this.uHeightScale is set.
+   */
+  _initTerrainHeightmap() {
+    const N = 256;
+    const pixels = new Uint8Array(N * N);
+    this._terrainGrid  = new Float32Array(N * N);
+    this._terrainGridN = N;
+
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) {
+        const u  = i / (N - 1);
+        const v  = j / (N - 1);
+        // Mirror exactly what terrain.vert does:
+        //   aTextureCoord → UV; aVertexPosition.xy*1.5 where local_x=u-0.5, local_y=0.5-v
+        const lx = (u - 0.5) * 1.5;
+        const ly = (0.5 - v) * 1.5;
+        const h  = this._fbm(lx, ly);
+        this._terrainGrid[j * N + i] = h;
+        pixels[j * N + i] = Math.min(255, Math.max(0, Math.round(h * 255)));
+      }
+    }
+
+    const gl = this.gl;
+    this._cpuHeightTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this._cpuHeightTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, N, N, 0,
+                  gl.LUMINANCE, gl.UNSIGNED_BYTE, pixels);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+
+  /**
+   * Returns the world-space Y height of the terrain at world position (wx, wz).
+   * Bilinearly interpolates from the precomputed CPU height grid so the result
+   * matches the GPU displacement exactly (same data source, no sin precision issue).
+   */
   terrainHeight(wx, wz) {
-    const lx =  (wx / this.groundScale) * 1.5;
-    const ly = -(wz / this.groundScale) * 1.5; // local Y = -world Z (due to -90° X rotation)
-    return this._fbm(lx, ly) * this.uHeightScale * this.groundScale;
+    const u  = Math.max(0, Math.min(1, wx / this.groundScale + 0.5));
+    const v  = Math.max(0, Math.min(1, wz / this.groundScale + 0.5));
+    const N  = this._terrainGridN;
+    const px = u * (N - 1);
+    const py = v * (N - 1);
+    const x0 = Math.floor(px), y0 = Math.floor(py);
+    const x1 = Math.min(x0 + 1, N - 1);
+    const y1 = Math.min(y0 + 1, N - 1);
+    const fx = px - x0, fy = py - y0;
+    const g  = this._terrainGrid;
+    const h  = g[y0*N+x0]*(1-fx)*(1-fy) + g[y0*N+x1]*fx*(1-fy)
+             + g[y1*N+x0]*(1-fx)*fy      + g[y1*N+x1]*fx*fy;
+    return h * this.uHeightScale * this.groundScale;
   }
 
   initShader() {
@@ -797,6 +914,7 @@ export class MyScene extends CGFscene {
             let tempWz = (normCenterZ * (this.groundScale - 4.0)) + offsetZ;
 
             if (this.isOnPath(tempWx, tempWz)) continue;
+            if (this._isInsideFenceArea(tempWx, tempWz)) continue;
 
             let levels = Math.floor(Math.random() * 2) + 3;
             let blade = new MyGrass(this, levels, 0.1, 0.1 + Math.random() * 0.2);
@@ -829,15 +947,17 @@ makeRng(seed) {
 }
 
   rebuildPath() {
-    this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    const { fixedPoints, exclusionZones } = this._computePathConfig();
+    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed, fixedPoints, exclusionZones);
     this.rebuildGrass();
   }
 
   newRandomPath() {
     this.pathSeed = Math.floor(Math.random() * 1000);
-    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    const { fixedPoints, exclusionZones } = this._computePathConfig();
+    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed, fixedPoints, exclusionZones);
     this.rebuildGrass();
-    this.scene.generateTrees();
+    this.generateTrees();
   }
 
   saveCurrentPath() {
@@ -906,7 +1026,11 @@ makeRng(seed) {
           this.gl.TEXTURE_WRAP_T,
           this.gl.REPEAT,
         );
-        this.groundHeightTexture.bind(1);
+        // Bind the precomputed CPU height map to unit 1 — this is what the
+        // terrain vertex shader samples for displacement, and what terrainHeight()
+        // interpolates on the CPU side, so both are guaranteed to agree.
+        this.gl.activeTexture(this.gl.TEXTURE1);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this._cpuHeightTex);
         this.groundDirtTexture.bind(2);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
@@ -1268,7 +1392,8 @@ makeRng(seed) {
       const obj = new MyLSTree(this, randomW, randomL);
       obj.init();
       
-      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ }, this.treeMinDistanceToPath)) {
+      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ }, this.treeMinDistanceToPath)
+          && !this._isInsideFenceArea(randomX * this.groundScale, randomZ * this.groundScale)) {
         this.treePositions.push({
           obj: obj,
           x: randomX,
@@ -1305,7 +1430,8 @@ makeRng(seed) {
       const obj = new MyLSFlower(this, randomW, 3,8, randomLL, 0.3, randomP, randomPL);
       obj.init();
       
-      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ }, this.flowerMinDistanceToPath)) {
+      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ }, this.flowerMinDistanceToPath)
+          && !this._isInsideFenceArea(randomX * this.groundScale, randomZ * this.groundScale)) {
         this.flowerPositions.push({
           obj: obj,
           x: randomX,
@@ -1333,7 +1459,8 @@ makeRng(seed) {
       let normX = (Math.random() - 0.5);
       let normZ = (Math.random() - 0.5);
       
-      if (this.checkOutsideAllEdges({ x: normX, z: normZ }, this.rockMinDistanceToPath)) {
+      if (this.checkOutsideAllEdges({ x: normX, z: normZ }, this.rockMinDistanceToPath)
+          && !this._isInsideFenceArea(normX * this.groundScale, normZ * this.groundScale)) {
         this.rockPositions.push({
           normX: normX,
           normZ: normZ,
@@ -1356,24 +1483,33 @@ makeRng(seed) {
 
   generateHay() {
     this.hayPositions = [];
-    let failedAttempts = 0;
 
-    for (let i = 0; i < this.numHay; i++) {
-      const normX = (Math.random() - 0.5);
-      const normZ = (Math.random() - 0.5);
+    const nodes = this.ground.pathNodes;   // UV-space [u, v] for every MST node
+    if (!nodes || nodes.length === 0) return;
 
-      if (this.checkOutsideAllEdges({ x: normX, z: normZ }, this.hayMinDistanceToPath)) {
-        this.hayPositions.push({
-          normX: normX,
-          normZ: normZ,
-          rotation: Math.random() * Math.PI * 2,
-        });
-      } else if (failedAttempts < this.numHay * 2) {
-        failedAttempts++;
-        i--;
-      } else {
-        break;
-      }
+    // Skip the first 2 fixed nodes (they sit near the barn entrance).
+    // Also skip any node whose world position is still inside the fence area.
+    const candidates = nodes.slice(2).filter(([u, v]) => {
+      const wx = (u - 0.5) * this.groundScale;
+      const wz = (v - 0.5) * this.groundScale;
+      return !this._isInsideFenceArea(wx, wz, 0);
+    });
+
+    // Fisher-Yates shuffle so we get a different set each call
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+
+    // Place one bale at each of the first numHay candidates
+    const count = Math.min(this.numHay, candidates.length);
+    for (let i = 0; i < count; i++) {
+      const [u, v] = candidates[i];
+      this.hayPositions.push({
+        normX:    u - 0.5,                        // UV [0,1] → norm [-0.5, 0.5]
+        normZ:    v - 0.5,
+        rotation: Math.random() * Math.PI * 2,
+      });
     }
   }
 

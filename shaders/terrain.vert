@@ -46,7 +46,7 @@ float fbm(vec2 st) {
 void main() {
   vTextureCoord = aTextureCoord;
 
-  float h = fbm(aVertexPosition.xy * 1.5);
+  float h = texture2D(uHeightMap, aTextureCoord).r;
 
   vec3 displaced = aVertexPosition + aVertexNormal * (h * uHeightScale);
 
