@@ -1,151 +1,114 @@
 import {CGFobject} from '../../lib/CGF.js';
+
 /**
  * MyLSystem
  * @constructor
  * @param scene - Reference to MyScene object
  */
 export class MyLSystem extends CGFobject {
-	constructor(scene) {
+    constructor(scene) {
         super(scene);
         this.init();
     }
 
-    // inicializa o Sistema L
-    init(){
-        // copia o axioma da cena para iniciar a sequência de desenvolvimento
+    init() {
         this.axiom = this.scene.axiom;
-
-        // numero de iteracoes
         this.iterations = this.scene.iterations;
-
-        // angulo de rotacao
         this.angle = this.scene.angle * Math.PI / 180.0;
+        this.scale = Math.pow(this.scene.treeScaleFactor, this.iterations - 1);
 
-        // escalamento dos elementos dependente do numero de iteracoes
-        this.scale = Math.pow(this.scene.treeScaleFactor, this.iterations-1);
-        console.log(this.scale);
-
-        // cria o lexico da gramática
+        // 1. Call setup methods (which subclasses like MyLSTree will override)
         this.iniGrammar();
-    
-        // cria as producoes
         this.initProductions();
+        
+        // 2. Automatically convert arrays to high-performance lookup maps
+        this.buildOptimizationMaps();
 
-        // desenvolve a sequencia de desenvolvimento do Sistema L
-        this.iterate()
-     }
-
-    // Cria o lexico da gramatica
-    iniGrammar(){
-        this.grammar = []
-        this.primitives = []
-
-        // adicionar pares caracter / primitiva
-        this.grammar.push("F")
-        this.primitives.push(new MyQuad(this.scene, 0.2, 1));
+        // 3. Run development sequence
+        this.iterate();
     }
 
-    // cria as producoes
-    initProductions(){
-        // cria dois arrays para as producoes: predecessor -> successor
+    // Default grammar setup (Subclasses may override this)
+    iniGrammar() {
+        this.grammar = ["F"];
+        this.primitives = [new MyQuad(this.scene, 0.2, 1)];
+    }
+
+    // Default productions setup (Subclasses like MyLSTree override this)
+    initProductions() {
         this.predecessor = ["X", "F"];
         this.successor = [this.scene.ruleX, this.scene.ruleF];
     }
-    // desenvolve o axioma ao longo de uma sequência de desenvolvimento com um determinado número de iterações
-    iterate(){
-        var i, j, p;
-        for (i=0; i < this.iterations; ++i){
-            var newString = "";
 
-            // substitui cada um dos caracteres da cadeia de caracteres de acordo com as produções
-            for (j=0; j<this.axiom.length; ++j){
-                var productions = []
+    // Generates O(1) lookup tables from subclass arrays automatically
+    buildOptimizationMaps() {
+        this.grammarMap = {};
+        if (this.grammar && this.primitives) {
+            for (let i = 0; i < this.grammar.length; i++) {
+                this.grammarMap[this.grammar[i]] = this.primitives[i];
+            }
+        }
 
-                // verificar as producoes aplicaveis
-                for (p=0; p < this.predecessor.length; ++p){
-                    if (this.axiom[j] == this.predecessor[p]){
-                        // se o predecessor esta na cadeia substitui pelos sucessores
-                        productions.push(p);
-                    }               
+        this.productionsMap = {};
+        if (this.predecessor && this.successor) {
+            for (let i = 0; i < this.predecessor.length; i++) {
+                const pred = this.predecessor[i];
+                if (!this.productionsMap[pred]) {
+                    this.productionsMap[pred] = [];
                 }
+                this.productionsMap[pred].push(this.successor[i]);
+            }
+        }
+    }
 
-                // aplicar producoes
-                if (productions.length == 0){
-                    // caso nao se aplique nenhuma producao deixa estar o caracter original
-                    newString += this.axiom[j];
-                }else if (productions.length == 1) {
-                    // caso apenas exista uma producao, aplica-a
-                    newString += this.successor[productions[0]];
+    iterate() {
+        for (let i = 0; i < this.iterations; ++i) {
+            let newString = "";
+
+            for (let j = 0; j < this.axiom.length; ++j) {
+                const char = this.axiom[j];
+                const rules = this.productionsMap[char];
+
+                if (!rules || rules.length === 0) {
+                    newString += char;
+                } else if (rules.length === 1) {
+                    newString += rules[0];
                 } else {
-                    // sistema estocastico - varias producoes sao aplicaveis - seleciona aleatoriamente
-                    newString += this.successor[productions[Math.floor(Math.random() * productions.length)]];                    
+                    // Stochastic handling
+                    newString += rules[Math.floor(Math.random() * rules.length)];
                 }
             }
-
             this.axiom = newString;
         }
     }
 
-    display(){
-        var i, j;
-
-        // percorre a cadeia de caracteres
-        for (i=0; i<this.axiom.length; ++i){
-
-            // verifica se sao caracteres especiais
-            switch(this.axiom[i]){
-                case "+":
-                    // roda a esquerda
-                    this.scene.rotate(this.angle, 0, 0, 1);
-                    break;
-
-                case "-":
-                    // roda a direita
-                    this.scene.rotate(-this.angle, 0, 0, 1);
-                    break;
-
-                case "\\":
-                    // roda a esquerda
-                    this.scene.rotate(-this.angle, 0, 1, 0);
-                    break;
-
-                case "/":
-                    // roda a esquerda
-                    this.scene.rotate(-this.angle, 0, 1, 0);
-                    break;
-
-                case "^":
-                    // roda a esquerda
-                    this.scene.rotate(-this.angle, 1, 0, 0);
-                    break;
-
-                case "&":
-                    // roda a esquerda
-                    this.scene.rotate(-this.angle, 1, 0, 0);
-                    break;
-
-                case "[":
-                    // push
-                    this.scene.pushMatrix();
-                    break;
-
-                case "]":
-                    // pop
-                    this.scene.popMatrix();
-                    break;
-
-                // percorre o lexico da gramatica para procurar primitivas
+    display() {
+        // REMOVED the global setDefaultAppearance from here so leaves can have their own color
+    
+        for (let i = 0; i < this.axiom.length; ++i) {
+            switch(this.axiom[i]) {
+                case "+": this.scene.rotate(this.angle, 0, 0, 1); break;
+                case "-": this.scene.rotate(-this.angle, 0, 0, 1); break;
+                case "\\": this.scene.rotate(-this.angle, 0, 1, 0); break;
+                case "/": this.scene.rotate(-this.angle, 0, 1, 0); break;
+                case "^": this.scene.rotate(-this.angle, 1, 0, 0); break;
+                case "&": this.scene.rotate(-this.angle, 1, 0, 0); break;
+                case "[": this.scene.pushMatrix(); break;
+                case "]": this.scene.popMatrix(); break;
+    
                 default:
-                    for (j=0; j < this.grammar.length; ++j){
-                        if (this.axiom[i] == this.grammar[j]){
-                            this.scene.pushMatrix();
-                            this.scene.scale(this.scale, this.scale, this.scale);
-                            this.primitives[j].setDefaultAppearance();
-                            this.primitives[j].display();
-                            this.scene.popMatrix();
-                            this.scene.translate(0, this.scale, 0);
-                            break;
-                        }
+                    // High-speed O(1) primitive lookups
+                    const primitive = this.grammarMap[this.axiom[i]];
+                    if (primitive) {
+                        this.scene.pushMatrix();
+                        this.scene.scale(this.scale, this.scale, this.scale);
+                        
+                        // FIX: Set the appearance for the specific primitive (branch OR leaf) right before rendering
+                        primitive.setDefaultAppearance(); 
+                        primitive.display();
+                        
+                        this.scene.popMatrix();
+                        this.scene.translate(0, this.scale, 0);
                     }
                     break;
             }

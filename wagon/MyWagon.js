@@ -10,7 +10,7 @@ export class MyWagon extends CGFobject {
   constructor(scene, woodTexture, clothTexture, numPlanks = 3, plankHeight = 0.5, taper = -0.1, baseWidth = 2, baseLength = 2.5, plankSpace = 0.01, wheelWidth = 0.1, wheelSpeed = Math.PI, tongueLength = 3) {
     super(scene);
 
-    this.hayCount = 2;
+    this.hayCount = 0;
 
     if (woodTexture) {
       this.woodMaterial = new CGFappearance(scene);
@@ -210,5 +210,10 @@ export class MyWagon extends CGFobject {
 
   updateWheelAngle(speed) {
     this.wheelAng += this.wheelSpeed*speed;
+  }
+
+  updateHayCount(num) {
+    if (num > 2) num = 2;
+    this.hayCount = num;
   }
 }

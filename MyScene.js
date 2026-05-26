@@ -83,7 +83,7 @@ export class MyScene extends CGFscene {
     this.treeMinDistanceToPath = 0.03;
     this.flowerMinDistanceToPath = 0.03;
     this.flowerDensity = 0.1; // amount of flwoers per unit squared
-    this.treeDensity = 0.1; // amount of trees per unit squared
+    this.treeDensity = 0.065; // amount of trees per unit squared
     this.grassMinDistanceToPath = 0.03;
 
     //Initialize Materials and lights
@@ -433,6 +433,14 @@ export class MyScene extends CGFscene {
     }
     if (this.gui.isKeyPressed("KeyD")) {
       this.wagonAngle -= this.wagonTurnRate * this.wagonSpeed;
+    }
+
+    // DEBUG
+    if (this.gui.isKeyPressed("KeyE")) {
+      this.wagon.updateHayCount(this.wagon.hayCount + 1);
+    }
+    if (this.gui.isKeyPressed("KeyQ")) {
+      this.wagon.updateHayCount(this.wagon.hayCount - 1);
     }
   }
 
