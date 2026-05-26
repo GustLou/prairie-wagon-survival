@@ -23,6 +23,7 @@ export class MyInterface extends CGFinterface {
       generateRocks:   () => this.scene.generateRocks(),
       generateGrass:   () => this.scene.rebuildGrass(),
       generateFlowers: () => this.scene.generateFlowers(),
+      generateHay:     () => this.scene.generateHay(),
       save:            () => this.scene.saveCurrentPath(),
       print:           () => this.scene.printSavedPath(),
       toggleDisplayAll:() => this.scene.toggleDisplayAll(),
@@ -30,9 +31,10 @@ export class MyInterface extends CGFinterface {
 
     // Global controls
     const globalFolder = this.gui.addFolder("Global");
-    globalFolder.add(this.scene, "globalScaleFactor", 0.1, 200).name("Scale Factor");
+    globalFolder.add(this.scene, "globalScaleFactor", 0.1, 5).name("Scale Factor");
     globalFolder.add(this.scene, "displayAxis").name("Display Axis");
     globalFolder.add(actions, "toggleDisplayAll").name("Toggle Display All");
+    globalFolder.add(this.scene, "followCamera").name("Camera Following the Wagon");
 
     // Sky controls
     const skyFolder = this.gui.addFolder("Sky");
@@ -44,7 +46,7 @@ export class MyInterface extends CGFinterface {
     // Cloud controls
     // const cloudFolder = this.gui.addFolder("Clouds");
     skyFolder.add(this.scene, "displayClouds").name("Display Clouds");
-    skyFolder.add(this.scene, "cloudSpeed", 0.0, 0.008).name("Speed");
+    skyFolder.add(this.scene, "cloudSpeed", 0.0, 0.5).name("Speed");
     skyFolder.add(this.scene, "cloudDensity", 0.0, 0.9).name("Density");
     skyFolder.add(this.scene, "cloudSize", 1.0, 50.0).name("Cloud Size");
 
@@ -95,6 +97,13 @@ export class MyInterface extends CGFinterface {
     grassFolder.add(this.scene, 'grassScaleFactor').name('Scale Factor');
     grassFolder.add(actions, 'generateGrass').name('Generate Layout');
 
+    const hayFolder = this.gui.addFolder('Hay');
+    hayFolder.add(this.scene, 'displayHay').name('Display');
+    hayFolder.add(this.scene, 'numHay', 1, 20, 1).name('Count');
+    hayFolder.add(this.scene, 'hayMinDistanceToPath', 0.01, 0.2).name('Min Distance to Path');
+    hayFolder.add(this.scene, 'hayScaleFactor', 0.1, 3.0).name('Scale Factor');
+    hayFolder.add(actions, 'generateHay').name('Generate Layout');
+
     const rockFolder = this.gui.addFolder('Rock');
     rockFolder.add(this.scene, 'displayRock').name('Display');
     rockFolder.add(this.scene, 'numRocks',      1,   50,  1  ).name('Count')
@@ -124,6 +133,39 @@ export class MyInterface extends CGFinterface {
     siloFolder.add(this.scene, 'siloOffsetZ', -3, 3, 0.05).name('Offset Z (local)');
     siloFolder.add(this.scene, 'siloHayLevel', 0, 1, 0.01).name('Hay Level');
 
+
+    const wagonFolder = this.gui.addFolder('Wagon');
+    wagonFolder.add(this.scene, 'displayWagon').name('Display');
+    wagonFolder.add(this.scene, 'wagonScaleFactor').name('Scale Factor');
+
+    this.initKeys();
+
     return true;
-    }
+  }
+  initKeys() {
+    // create reference from the scene to the GUI
+    this.scene.gui=this;
+
+    // disable the processKeyboard function
+    this.processKeyboard=function(){};
+
+    // create a named array to store which keys are being pressed
+    this.activeKeys={};
+  }
+
+  processKeyDown(event) {
+    // called when a key is pressed down
+    // mark it as active in the array
+    this.activeKeys[event.code]=true;
+  }
+
+  processKeyUp(event) {
+    // called when a key is released, mark it as inactive in the array
+    this.activeKeys[event.code]=false;
+  }
+
+  isKeyPressed(keyCode) {
+    // returns true if a key is marked as pressed, false otherwise
+    return this.activeKeys[keyCode] || false;
+  }
 }

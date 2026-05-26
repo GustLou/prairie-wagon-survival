@@ -16,6 +16,9 @@ import { MyLSFlower } from "./tree/MyLSFlower.js";
 import { MyBarn } from "./MyBarn.js";
 import { MyCircularFence } from "./MyCircularFence.js";
 import { MyHaySilo } from "./MyHaySilo.js";
+import { MyHay } from "./hay/MyHay.js";
+import { MyWagon } from "./wagon/MyWagon.js";
+import { MyArrow } from "./hay/MyArrow.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -128,8 +131,8 @@ export class MyScene extends CGFscene {
       uScale: 12.4,
     });
     
-    // change this variable to start with everything displayed or not by default
-    // TODO: remove this debug logic before final submission
+    this.followCamera = false;
+
     this.displayAll      = false;
     this.displayAxis      = this.displayAll;
     this.displaySky       = this.displayAll;
@@ -143,6 +146,8 @@ export class MyScene extends CGFscene {
     this.displayBarn      = this.displayAll;
     this.displayFence     = this.displayAll;
     this.displaySilo      = this.displayAll;
+    this.displayHay       = this.displayAll;
+    this.displayWagon     = this.displayAll;
 
     this.pathWidth = 0.03;
 
@@ -151,7 +156,7 @@ export class MyScene extends CGFscene {
     this.treeScaleFactor   = 0.5;
     this.flowerScaleFactor = 0.5;
 
-    this.cloudSpeed        = 0.001;
+    this.cloudSpeed        = 0.05;
     this.cloudDensity      = 0.62;
     this.cloudSize        = 6.0; // as in how small the clouds are, the half-sphere radius is defined with skyScaleFactor
     this._cloudTime        = 0.0;
@@ -168,9 +173,38 @@ export class MyScene extends CGFscene {
       'textures/black_rock_texture.jpg',
     );
 
+    this.hayScaleFactor = 0.3;
+    this.numHay = 8;
+    this.hayMinDistanceToPath = 0.05;
+
+    this.hay = new MyHay(
+      this,
+      'textures/haystack.png',
+    );
+
+    this.arrow = new MyArrow(this);
+
+    this.arrowShader = new CGFshader(
+      this.gl,
+      "shaders/arrow.vert",
+      "shaders/arrow.frag",
+    );
+
+    this.wagonScaleFactor = 0.35;
+    this.wagon = new MyWagon(this, "textures/wood.jpeg", "textures/cloth.jpg");
+
+    this.wagonPosition = { x: 0, z: 0 }; // Starting coordinates
+    this.wagonAngle = 0;                 // Current heading (rotation on Y axis)
+    this.wagonSpeed = 0;                 // Current velocity
+    
+    this.wagonAcceleration = 0.01;       // How fast it accelerates per frame
+    this.wagonFriction = 0.92;           // Friction to slow it down when keys are released
+    this.wagonTurnRate = 0.4;            // Base turn rate (will be multiplied by speed)
+
     this.generateTrees();
     this.generateFlowers();
     this.generateRocks();
+    this.generateHay();
 
     // --- Barn + circular fence ---
     this.barn = new MyBarn(this);
@@ -284,6 +318,8 @@ export class MyScene extends CGFscene {
     this.displayBarn      = newValue;
     this.displayFence     = newValue;
     this.displaySilo      = newValue;
+    this.displayHay       = newValue;
+    this.displayWagon     = newValue;
   }
 
   // Shortest distance from point (px, pz) to segment (x1, z1) -> (x2, z2)
@@ -315,11 +351,91 @@ export class MyScene extends CGFscene {
 }
 
   update(t) {
-    this._accumulatedTime += t;
-    this._cloudTime = (this._accumulatedTime / 10e11) * this.cloudSpeed;
+    // t = Date.now() — an absolute Unix timestamp (~1.748e12 ms).
+    // We subtract the scene's start time so elapsed stays near 0,
+    // keeping uTime in float32-safe range for shader sin() calls.
+    if (this._startTime === undefined) this._startTime = t;
+    const elapsed = t - this._startTime; // ms since scene start
 
-    this.windShader.setUniformsValues({ uTime: this._accumulatedTime / 1500.0 });
+    this._cloudTime = (elapsed / 1000.0) * this.cloudSpeed;
+    this.windShader.setUniformsValues({ uTime: elapsed / 1000.0 }); // seconds
+    
+    // 1. Set the duration for a full up-and-down loop (e.g., 4000ms = 4 seconds)
+    // This creates a linear timer value running from 0.0 to 2.0
+    const cycle = (t % 3000) / 2000;
+
+    // 2. Turn it into a straight-lined triangle bounce between 0.0 and 1.0
+    const triangle = Math.abs(cycle - 1.0);
+
+    // 3. Scale it to your original [-0.2, 0.2] bounce range
+    // Because this uses absolute linear values instead of trigonometry,
+    // the speed is 100% constant throughout the entire movement.
+    const bob = (triangle * 2.0 - 1.0) * 0.2;
+
+    this.arrowShader.setUniformsValues({ uBob: bob });
+
+    this.checkKeys();
+
+    // Apply friction to gradually slow down the wagon
+    this.wagonSpeed *= this.wagonFriction;
+
+    // Stop micro-sliding when speed is extremely low
+    if (Math.abs(this.wagonSpeed) < 0.001) {
+      this.wagonSpeed = 0;
+    }
+
+    // Calculate new position based on speed and heading
+    // (Using sin for X and cos for Z gives standard tank/car controls)
+    this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed;
+    this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed;
+
+    this.wagon.updateWheelAngle(this.wagonSpeed);
+
+    if (this.followCamera) this.updateCamera();
   }
+
+  updateCamera() {
+    const followDistance = 8.0;
+    const followHeight = 5;
+
+    const wagonY = this.terrainHeight(this.wagonPosition.x, this.wagonPosition.z);
+
+    const target = vec3.fromValues(this.wagonPosition.x, wagonY+1, this.wagonPosition.z);
+
+    const offsetX = Math.sin(this.wagonAngle) * followDistance;
+    const offsetZ = Math.cos(this.wagonAngle) * followDistance;
+
+    const camX = this.wagonPosition.x - offsetX;
+    const camZ = this.wagonPosition.z - offsetZ;
+    const camY = wagonY + followHeight; 
+
+    const position = vec3.fromValues(camX, camY, camZ);
+
+    this.camera.setPosition(position);
+    this.camera.setTarget(target);
+  }
+
+  checkKeys() {
+    // Accelerate forward
+    if (this.gui.isKeyPressed("KeyW")) {
+      this.wagonSpeed += this.wagonAcceleration;
+    }
+    // Decelerate / Reverse
+    if (this.gui.isKeyPressed("KeyS")) {
+      this.wagonSpeed -= this.wagonAcceleration;
+    }
+
+    // Steer (Curve trajectory)
+    // By multiplying by this.wagonSpeed, the wagon CANNOT rotate in place. 
+    // It also naturally reverses the steering direction if you are backing up!
+    if (this.gui.isKeyPressed("KeyA")) {
+      this.wagonAngle += this.wagonTurnRate * this.wagonSpeed;
+    }
+    if (this.gui.isKeyPressed("KeyD")) {
+      this.wagonAngle -= this.wagonTurnRate * this.wagonSpeed;
+    }
+  }
+
 
   // CPU replicas of terrain.vert noise/fbm — used to place grass at correct height
   // we are simply replicating what was done in the vert shader to sync the poisition of the objects with the ground
@@ -372,7 +488,7 @@ export class MyScene extends CGFscene {
       "shaders/wind.vert",
       "shaders/wind.frag",
     );
-    this.windShader.setUniformsValues({ uTime: 0.0 });
+    this.windShader.setUniformsValues({ uTime: 0.0, uWindStrength: 0.6, uWindSpeed: 2.0 });
 
     this.rockShader = new CGFshader(
       this.gl,
@@ -452,10 +568,12 @@ export class MyScene extends CGFscene {
       this.sunPosition.z,
       0.0, // 0 because of directional
     );
+
     // Adding a meaningful ambient term to BOTH the scene and the light
     // means the side of an object facing away from the sun still receives
     // light (instead of going almost black with a purely directional sun).
     this.lights[0].setAmbient(0.45, 0.45, 0.45, 1.0);
+    // this.lights[0].setAmbient(0.3, 0.28, 0.22, 1.0);
     this.lights[0].setDiffuse(1.0, 0.95, 0.7, 1.0);
     this.lights[0].setSpecular(1.0, 0.95, 0.7, 1.0);
     this.lights[0].enable();
@@ -521,16 +639,19 @@ export class MyScene extends CGFscene {
 
             if (this.isOnPath(tempWx, tempWz)) continue;
 
-            let levels = Math.floor(Math.random() * 2) + 2;
+            let levels = Math.floor(Math.random() * 2) + 3;
             let blade = new MyGrass(this, levels, 0.1, 0.1 + Math.random() * 0.2);
             blade.health = Math.max(0, Math.min(1, patchHealth + (Math.random() - 0.5) * 0.2));
 
+            const wx = tempWx;
+            const wz = tempWz;
+            const wy = this.terrainHeight(wx, wz);
+
             this.grassBlades.push({
                 object: blade,
-                normCenterX: normCenterX,
-                normCenterZ: normCenterZ,
-                offsetX: offsetX,
-                offsetZ: offsetZ,
+                wx: wx,
+                wz: wz,
+                wy: wy,
                 rot: Math.random() * Math.PI * 2,
                 scale: 0.8 + Math.random() * 0.4
             });
@@ -744,35 +865,22 @@ makeRng(seed) {
 
     this.setActiveShader(this.windShader);
 
-    // Example wind parameters
-    this.windShader.setUniformsValues({ 
-        uWindStrength: 0.2,
-        uWindSpeed: 1.5 
-    });
-
     if (this.displayGrass) {
       for (let i = 0; i < this.grassBlades.length; i++) {
         let g = this.grassBlades[i];
-  
-        // 1. Calculate the real world position dynamically 
-        let wx = (g.normCenterX * (this.groundScale - 4.0)) + g.offsetX;
-        let wz = (g.normCenterZ * (this.groundScale - 4.0)) + g.offsetZ;
-        
-        // 2. Fetch the terrain height at the new scaled position
-        let wy = this.terrainHeight(wx, wz);
-  
+
         this.windShader.setUniformsValues({
             uHealth: g.object.health,
-            uBladeWorldPos: [wx, wz]
+            uBladeWorldPos: [g.wx, g.wz]
         });
-        
+
         this.pushMatrix();
           this.multMatrix(sca);
-          this.translate(wx, wy, wz); // Use dynamically calculated pos
+          this.translate(g.wx, g.wy, g.wz);
           this.rotate(g.rot, 0, 1, 0);
           const finalScale = g.scale * this.grassScaleFactor;
           this.scale(finalScale, finalScale, finalScale);
-          
+
           g.object.display();
         this.popMatrix();
       }
@@ -874,6 +982,116 @@ makeRng(seed) {
         this.popMatrix();
       }
     }
+
+    if (this.displayHay && this.hayPositions) {
+      for (let i = 0; i < this.hayPositions.length; i++) {
+        const pos = this.hayPositions[i];
+        const wx = pos.normX * this.groundScale;
+        const wz = pos.normZ * this.groundScale;
+
+        // Sample all 4 corners of the bale footprint and use the highest point,
+        // so the bale sits on top of the terrain even on steep slopes.
+        const hw = 0.75 * this.hayScaleFactor; // half of bale width  (1.5 * scale / 2)
+        const hd = 0.5  * this.hayScaleFactor; // half of bale depth  (1.0 * scale / 2)
+        const wy = Math.max(
+          this.terrainHeight(wx,      wz     ),
+          this.terrainHeight(wx + hw, wz + hd),
+          this.terrainHeight(wx - hw, wz + hd),
+          this.terrainHeight(wx + hw, wz - hd),
+          this.terrainHeight(wx - hw, wz - hd),
+        );
+
+        this.pushMatrix();
+          this.multMatrix(sca);
+          this.translate(wx, wy, wz);
+          this.rotate(pos.rotation, 0, 1, 0);
+          this.scale(this.hayScaleFactor, this.hayScaleFactor, this.hayScaleFactor);
+          this.hay.display();
+        this.popMatrix();
+      }
+      
+      this.setActiveShader(this.arrowShader);
+      // second loop to avoid changing shaders for every hay/arrow couple
+      for (let i = 0; i < this.hayPositions.length; i++) {
+        const pos = this.hayPositions[i];
+        const wx = pos.normX * this.groundScale;
+        const wz = pos.normZ * this.groundScale;
+
+        // Sample all 4 corners of the bale footprint and use the highest point,
+        // so the bale sits on top of the terrain even on steep slopes.
+        const hw = 0.75 * this.hayScaleFactor; // half of bale width  (1.5 * scale / 2)
+        const hd = 0.5  * this.hayScaleFactor; // half of bale depth  (1.0 * scale / 2)
+        const wy = Math.max(
+          this.terrainHeight(wx,      wz     ),
+          this.terrainHeight(wx + hw, wz + hd),
+          this.terrainHeight(wx - hw, wz + hd),
+          this.terrainHeight(wx + hw, wz - hd),
+          this.terrainHeight(wx - hw, wz - hd),
+        );
+
+        this.pushMatrix();
+          this.multMatrix(sca);
+          this.translate(wx, wy, wz);
+          this.rotate(pos.rotation, 0, 1, 0);
+          this.scale(this.hayScaleFactor, this.hayScaleFactor, this.hayScaleFactor);
+          this.arrow.display();
+        this.popMatrix();
+      }
+      this.setActiveShader(this.defaultShader);
+    }
+
+    if (this.displayWagon) {
+      let wy = this.terrainHeight(this.wagonPosition.x, this.wagonPosition.z);
+
+      const wagonLength = 2;      // Distance from front to back
+      const wagonHalfWidth = 2.5;   // Distance from center to left/right side
+
+      const fX = Math.sin(this.wagonAngle); // Forward X
+      const fZ = Math.cos(this.wagonAngle); // Forward Z
+      const rX = Math.cos(this.wagonAngle); // Right X
+      const rZ = -Math.sin(this.wagonAngle);// Right Z
+
+      const frontX = this.wagonPosition.x;
+      const frontZ = this.wagonPosition.z;
+      const backX  = frontX - (fX * wagonLength);
+      const backZ  = frontZ - (fZ * wagonLength);
+      const horseX = frontX + 3*fX;
+      const horseZ = frontZ + 3*fZ;
+      
+      const hFront = wy;
+      const hBack  = this.terrainHeight(backX, backZ);
+      const hHorse = this.terrainHeight(horseX, horseZ);
+
+      const centerX = frontX - (fX * wagonLength / 2);
+      const centerZ = frontZ - (fZ * wagonLength / 2);
+
+      const rightX = centerX + (rX * wagonHalfWidth);
+      const rightZ = centerZ + (rZ * wagonHalfWidth);
+      const leftX  = centerX - (rX * wagonHalfWidth);
+      const leftZ  = centerZ - (rZ * wagonHalfWidth);
+
+      const hRight = this.terrainHeight(rightX, rightZ);
+      const hLeft  = this.terrainHeight(leftX, leftZ);
+
+      const pitch = Math.atan2(hFront - hBack, wagonLength);
+      const roll = Math.atan2(hRight - hLeft, wagonHalfWidth * 2);
+      const horsePitch = -Math.atan2(hHorse - hFront, 3);
+      
+      this.pushMatrix();
+        this.multMatrix(sca);
+        
+        this.translate(frontX, wy + 0.4, frontZ);
+        
+        this.rotate(this.wagonAngle, 0, 1, 0); 
+
+        this.rotate(-pitch, 1, 0, 0);
+        this.rotate(roll, 0, 0, 1);
+        
+        this.scale(this.wagonScaleFactor, this.wagonScaleFactor, this.wagonScaleFactor);
+        
+        this.wagon.display(horsePitch);
+      this.popMatrix();
+    }
   }
 
   generateTrees() {
@@ -972,6 +1190,29 @@ makeRng(seed) {
       } else {
         // the rock density is calculated based on the total area of the ground, so if we're failing so much,
         // it means the available area is too small and shouldn't have too many flowers
+        break;
+      }
+    }
+  }
+
+  generateHay() {
+    this.hayPositions = [];
+    let failedAttempts = 0;
+
+    for (let i = 0; i < this.numHay; i++) {
+      const normX = (Math.random() - 0.5);
+      const normZ = (Math.random() - 0.5);
+
+      if (this.checkOutsideAllEdges({ x: normX, z: normZ }, this.hayMinDistanceToPath)) {
+        this.hayPositions.push({
+          normX: normX,
+          normZ: normZ,
+          rotation: Math.random() * Math.PI * 2,
+        });
+      } else if (failedAttempts < this.numHay * 2) {
+        failedAttempts++;
+        i--;
+      } else {
         break;
       }
     }
