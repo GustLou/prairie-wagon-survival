@@ -47,7 +47,7 @@ export class MyScene extends CGFscene {
 
     // Ground controls
     this.ground = new MyPlane(this, 50);
-    this.groundScale = 25;
+    this.groundScale = 45;
     this.pathWidth = 0.03;
     this.uHeightScale = 0.13;
 
@@ -152,7 +152,7 @@ export class MyScene extends CGFscene {
     this.pathWidth = 0.03;
 
     this.globalScaleFactor = 1;
-    this.skyScaleFactor    = 25;
+    this.skyScaleFactor    = 35;
     this.treeScaleFactor   = 0.5;
     this.flowerScaleFactor = 0.5;
 
@@ -196,6 +196,7 @@ export class MyScene extends CGFscene {
     this.wagonPosition = { x: 0, z: 0 }; // Starting coordinates
     this.wagonAngle = 0;                 // Current heading (rotation on Y axis)
     this.wagonSpeed = 0;                 // Current velocity
+    this.cameraSteeringHeight = 1;
     
     this.wagonAcceleration = 0.01;       // How fast it accelerates per frame
     this.wagonFriction = 0.92;           // Friction to slow it down when keys are released
@@ -400,7 +401,7 @@ export class MyScene extends CGFscene {
 
     const wagonY = this.terrainHeight(this.wagonPosition.x, this.wagonPosition.z);
 
-    const target = vec3.fromValues(this.wagonPosition.x, wagonY+1, this.wagonPosition.z);
+    const target = vec3.fromValues(this.wagonPosition.x, wagonY+this.cameraSteeringHeight, this.wagonPosition.z);
 
     const offsetX = Math.sin(this.wagonAngle) * followDistance;
     const offsetZ = Math.cos(this.wagonAngle) * followDistance;
@@ -433,6 +434,14 @@ export class MyScene extends CGFscene {
     }
     if (this.gui.isKeyPressed("KeyD")) {
       this.wagonAngle -= this.wagonTurnRate * this.wagonSpeed;
+    }
+
+    // camera
+    if (this.gui.isKeyPressed("ArrowUp")) {
+      this.cameraSteeringHeight += 0.5;
+    }
+    if (this.gui.isKeyPressed("ArrowDown")) {
+      this.cameraSteeringHeight -= 0.5;
     }
 
     // DEBUG

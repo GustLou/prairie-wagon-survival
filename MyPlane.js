@@ -78,6 +78,7 @@ export class MyPlane extends CGFobject {
   generateMSTEdges(numPoints, seed = 0) {
     const rng = this.seededRng(seed);
     const pts = Array.from({ length: numPoints }, () => [rng(), rng()]);
+    // pts.push([0,0]);
 
     const inMST = new Array(numPoints).fill(false);
     const edges = [];
