@@ -557,7 +557,7 @@ export class MyScene extends CGFscene {
     );
     this.groundHeightTexture = new CGFtexture(this, "textures/terrainMap.jpg");
 
-    this.groundPathTexture = new CGFtexture(this, "textures/pathTexture.png");
+    this.groundPathTexture = new CGFtexture(this, "textures/dirt4.jpg");
     this.groundMaterial.setTexture(this.groundColorTexture);
     this.groundMaterial.setTextureWrap("REPEAT", "REPEAT");
   }
