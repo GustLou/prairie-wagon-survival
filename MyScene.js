@@ -166,7 +166,7 @@ export class MyScene extends CGFscene {
     this.pathWidth = 0.03;
 
     this.globalScaleFactor = 1;
-    this.skyScaleFactor    = 35;
+    this.skyScaleFactor    = 50;
     this.treeScaleFactor   = 0.5;
     this.flowerScaleFactor = 0.5;
 
@@ -437,21 +437,36 @@ export class MyScene extends CGFscene {
         let progress = this.turnAnimTimer / this.turnAnimDuration;
         
         if (progress >= 1.0) {
-          if (progress >= 3) {
+          if (progress >= 2.0) {
             this.isWagonTurning = false; // Animation finished
             
             // Keep the angle wrapped nicely within 0 to 2π
             this.wagonAngle = this.targetTurnAngle % (Math.PI * 2);
           } else {
             // section to let the wagon move forward a bit
-            this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * this._dt * 40;
-            this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * this._dt * 40;
+            this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
+            this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
           }
         } else {
           // Apply Smoothstep easing for a natural turn
           const ease = progress * progress * (3 - 2 * progress);
           this.wagonAngle = this.startTurnAngle + (Math.PI * ease);
         }
+      } else {
+        // Apply friction to gradually slow down the wagon
+        this.wagonSpeed *= this.wagonOnPath ? this.wagonFriction : this.wagonSlowFriction;
+
+        // Stop micro-sliding when speed is extremely low
+        if (Math.abs(this.wagonSpeed) < 0.001) {
+          this.wagonSpeed = 0;
+        }
+
+        // Calculate new position based on speed and heading
+        // (Using sin for X and cos for Z gives standard tank/car controls)
+        this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
+        this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
+
+        this.wagon.updateWheelAngle(this.wagonSpeed);
       }
 
       // ── Health / timer tick ─────────────────────────────────────────────
@@ -471,21 +486,6 @@ export class MyScene extends CGFscene {
       }
       this.healthDisplay  = this._formatTime(this.health);
       this.elapsedDisplay = this._formatTime(this.gameElapsed);
-
-      // Apply friction to gradually slow down the wagon
-      this.wagonSpeed *= this.wagonOnPath ? this.wagonFriction : this.wagonSlowFriction;
-
-      // Stop micro-sliding when speed is extremely low
-      if (Math.abs(this.wagonSpeed) < 0.001) {
-        this.wagonSpeed = 0;
-      }
-
-      // Calculate new position based on speed and heading
-      // (Using sin for X and cos for Z gives standard tank/car controls)
-      this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
-      this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
-
-      this.wagon.updateWheelAngle(this.wagonSpeed);
 
       this.checkCollisions();
 
@@ -596,6 +596,7 @@ export class MyScene extends CGFscene {
     if (this.isWagonTurning) return; 
 
     this.isWagonTurning = true;
+    this.wagonSpeed *= 3.5; // make the wagon faster so it gets out of forbidden zone and let friction reduce the velocity afterwards
     this.turnAnimTimer = 0;
     this.startTurnAngle = this.wagonAngle;
     this.targetTurnAngle = this.wagonAngle + Math.PI; 
@@ -643,9 +644,9 @@ export class MyScene extends CGFscene {
     // Decelerate / Reverse
     if (this.gui.isKeyPressed("KeyS")) {
       this.wagonSpeed -= this.wagonAcceleration;
-      if (this.wagonSpeed < 0) {
-        this.wagonSpeed = 0;
-      }
+      // if (this.wagonSpeed < 0) {
+      //   this.wagonSpeed = 0;
+      // }
     }
 
     // Steer (Curve trajectory)
