@@ -97,7 +97,7 @@ export class MyScene extends CGFscene {
     this.treeMinDistanceToPath = 0.03;
     this.flowerMinDistanceToPath = 0.03;
     this.flowerDensity = 0.1; // amount of flwoers per unit squared
-    this.treeDensity = 0.065; // amount of trees per unit squared
+    this.treeDensity = 0.03; // amount of trees per unit squared
     this.grassMinDistanceToPath = 0.03;
 
     //Initialize Materials and lights
@@ -596,7 +596,7 @@ export class MyScene extends CGFscene {
     if (this.isWagonTurning) return; 
 
     this.isWagonTurning = true;
-    this.wagonSpeed *= 3.5; // make the wagon faster so it gets out of forbidden zone and let friction reduce the velocity afterwards
+    this.wagonSpeed *= 2.5; // make the wagon faster so it gets out of forbidden zone and let friction reduce the velocity afterwards
     this.turnAnimTimer = 0;
     this.startTurnAngle = this.wagonAngle;
     this.targetTurnAngle = this.wagonAngle + Math.PI; 
@@ -644,9 +644,9 @@ export class MyScene extends CGFscene {
     // Decelerate / Reverse
     if (this.gui.isKeyPressed("KeyS")) {
       this.wagonSpeed -= this.wagonAcceleration;
-      // if (this.wagonSpeed < 0) {
-      //   this.wagonSpeed = 0;
-      // }
+      if (this.wagonSpeed < 0) {
+        this.wagonSpeed = 0;
+      }
     }
 
     // Steer (Curve trajectory)
