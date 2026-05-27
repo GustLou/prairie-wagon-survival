@@ -48,14 +48,26 @@ export class MyScene extends CGFscene {
     // Ground controls
     this.ground = new MyPlane(this, 50);
     this.groundScale = 45;
-    this.pathWidth = 0.03;
+    this.pathWidth = 0.02;
     this.uHeightScale = 0.13;
+
+    // Build the CPU height grid (and upload its GPU copy) immediately so that
+    // terrainHeight() works correctly for every generator call below.
+    this._initTerrainHeightmap();
 
     this.numPatches = 25; // number of patches center
     this.bladesPerPatch = 15; // density of each grass patch
     this.grassScaleFactor = 1.0;
 
-    this.pathNumPoints = 12;
+    // ── Barn / fence constants (defined early — needed for path generation) ──
+    this.barnX           = -16.0;
+    this.barnZ           = -16.0;
+    this.barnRotation    = Math.PI / 4;  // faces toward centre (0, 0)
+    this.barnScale       = 2.25;
+    this.fenceRadius     = 4.0;
+    this.fenceEntranceArc = Math.PI / 5;
+
+    this.pathNumPoints = 21;
     this.pathSeed = 0;
 
     // Restore saved path from a previous session if one exists
@@ -67,13 +79,14 @@ export class MyScene extends CGFscene {
     }
 
     // Path edges must exist before grass is generated so isOnPath works
-    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    const { fixedPoints: initFP, exclusionZones: initEZ } = this._computePathConfig();
+    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed, initFP, initEZ);
 
     this.rebuildGrass();
 
     // rock controls
     this.rocks = [];
-    this.numRocks = 8;
+    this.numRocks = 15;
     this.rockSpawnSeed  = 27.1;
     this.rockScaleFactor = 0.25;
     this.rockTexBlend = 0.5;
@@ -131,9 +144,9 @@ export class MyScene extends CGFscene {
       uScale: 12.4,
     });
     
-    this.followCamera = false;
+    this.followCamera = true;
 
-    this.displayAll      = false;
+    this.displayAll       = true;
     this.displayAxis      = this.displayAll;
     this.displaySky       = this.displayAll;
     this.displaySun       = this.displayAll;
@@ -174,12 +187,12 @@ export class MyScene extends CGFscene {
     );
 
     this.hayScaleFactor = 0.3;
-    this.numHay = 8;
+    this.numHay = 5;             // always 5 bales, one per chosen path node
     this.hayMinDistanceToPath = 0.05;
 
     this.hay = new MyHay(
       this,
-      'textures/haystack.png',
+      'textures/hay.jpg',
     );
 
     this.arrow = new MyArrow(this);
@@ -193,14 +206,23 @@ export class MyScene extends CGFscene {
     this.wagonScaleFactor = 0.35;
     this.wagon = new MyWagon(this, "textures/wood.jpeg", "textures/cloth.jpg");
 
-    this.wagonPosition = { x: 0, z: 0 }; // Starting coordinates
-    this.wagonAngle = 0;                 // Current heading (rotation on Y axis)
+    // Wagon spawns just outside the barn's fence entrance, aimed toward centre
+    const spawn = this._wagonSpawnPos();
+    this.wagonPosition = { x: spawn.x, z: spawn.z };
+    this.wagonAngle    = spawn.angle;
     this.wagonSpeed = 0;                 // Current velocity
-    this.cameraSteeringHeight = 1;
+    this.cameraSteeringHeight = 1.5;
+    this.followDistance = 16;
+    this.followHeight = 5;
+    this.cameraLerpSpeed = 1;
     
-    this.wagonAcceleration = 0.01;       // How fast it accelerates per frame
-    this.wagonFriction = 0.92;           // Friction to slow it down when keys are released
-    this.wagonTurnRate = 0.4;            // Base turn rate (will be multiplied by speed)
+    this.wagonAcceleration = 0.01;
+    this.wagonSlowFriction = 0.92;
+    this.wagonFriction = 0.96;
+    this.wagonTurnRate = 0.4;
+    this.wagonOnPath = true;
+
+    this.hayPositions = [];
 
     this.generateTrees();
     this.generateFlowers();
@@ -208,19 +230,10 @@ export class MyScene extends CGFscene {
     this.generateHay();
 
     // --- Barn + circular fence ---
+    // (barnX/Z/Rotation/Scale/fenceRadius defined early above for path generation)
     this.barn = new MyBarn(this);
-
-    // Barn placement: x/z in world units (relative to the [-groundScale/2, +groundScale/2] map)
-    this.barnX = -6.0;
-    this.barnZ =  4.0;
-    this.barnRotation = Math.PI * 0.15; // a slight angle so it doesn't look axis-aligned
-    this.barnScale = 1.6;               // unit barn → final size multiplier
-
-    // Fence around the barn
-    this.fenceRadius = 3.2;
     this.fence = new MyCircularFence(this, this.barnX, this.barnZ, this.fenceRadius, 48);
     this.fenceIntersected = false; // GUI toggle for now; wagon collision will drive this later
-    this.fenceEntranceArc = Math.PI / 5; // ~36°: roughly one wagon's width
 
     this.displayBarn  = true;
     this.displayFence = true;
@@ -229,15 +242,39 @@ export class MyScene extends CGFscene {
     // Local offset (in the barn's un-rotated frame). +X is along the barn's
     // long axis. The silo lives next to the barn's right end, slightly back
     // — inside the fence.
-    this.siloOffsetX = 1.50;
-    this.siloOffsetZ = -0.50;
+    this.siloOffsetX = 1.25;
+    this.siloOffsetZ = 0.15;
     this.siloRadius  = 0.55;
-    this.siloHeight  = 2.0;
-    this.siloHayLevel = 0.55;
+    this.siloHeight  = 3.0;
+    this.siloHayLevel = 1.0;
     this.siloRotationOffset = 0; // GUI fine-tune knob (radians)
 
     this.silo = new MyHaySilo(this, this.siloRadius, this.siloHeight, 40, Math.PI / 3);
     this.displaySilo = true;
+
+    // ── Health / timer system ──────────────────────────────────────────────
+    // maxHealth is the total health budget in seconds (silo full = 2 min).
+    this.maxHealth      = 150;          // 2 minutes
+    this.health         = this.maxHealth;
+    this.hasStartedMoving = false;      // latches true on first wagon movement
+    this.gameElapsed    = 0;            // seconds since first move (counts UP)
+    this._dt            = 0;           // frame delta in seconds (shared with checkKeys)
+
+    // Read-only strings shown live in the GUI
+    this.healthDisplay  = this._formatTime(this.maxHealth);
+    this.elapsedDisplay = '0:00';
+
+    // ── Game state & overlay DOM refs ──────────────────────────────────────
+    // States: 'start' | 'playing' | 'gameover'
+    this.gameState = 'start';
+    this._startScreenEl    = document.getElementById('start-screen');
+    this._gameoverScreenEl = document.getElementById('gameover-screen');
+    this._gameoverTimeEl   = document.getElementById('gameover-time');
+
+    this.wagonHayCount = 0;
+
+    // Clicking the start card also starts the game (same as any key press)
+    this._startScreenEl.addEventListener('click', () => this.startGame());
   }
 
   /**
@@ -358,6 +395,11 @@ export class MyScene extends CGFscene {
     if (this._startTime === undefined) this._startTime = t;
     const elapsed = t - this._startTime; // ms since scene start
 
+    // ── Per-frame delta time (seconds, capped to avoid huge jumps on tab switch)
+    if (this._lastT === undefined) this._lastT = t;
+    this._dt = Math.min((t - this._lastT) / 1000, 0.1);
+    this._lastT = t;
+
     this._cloudTime = (elapsed / 1000.0) * this.cloudSpeed;
     this.windShader.setUniformsValues({ uTime: elapsed / 1000.0 }); // seconds
     
@@ -375,26 +417,49 @@ export class MyScene extends CGFscene {
 
     this.arrowShader.setUniformsValues({ uBob: bob });
 
-    this.checkKeys();
+    // Only run gameplay logic while actually playing
+    if (this.gameState === 'playing') {
+      this.checkKeys();
 
-    // Apply friction to gradually slow down the wagon
-    this.wagonSpeed *= this.wagonFriction;
+      // ── Health / timer tick ─────────────────────────────────────────────
+      // Latch first movement (checked after checkKeys so speed is already updated).
+      if (!this.hasStartedMoving && Math.abs(this.wagonSpeed) > 0.001) {
+        this.hasStartedMoving = true;
+      }
+      if (this.hasStartedMoving) {
+        this.gameElapsed += this._dt;
+        this.health = Math.max(0, this.health - this._dt);
+        this._syncSiloToHealth();
 
-    // Stop micro-sliding when speed is extremely low
-    if (Math.abs(this.wagonSpeed) < 0.001) {
-      this.wagonSpeed = 0;
+        // ── Game over: health and silo both hit 0 ────────────────────────
+        if (this.health <= 0) {
+          this.triggerGameOver();
+        }
+      }
+      this.healthDisplay  = this._formatTime(this.health);
+      this.elapsedDisplay = this._formatTime(this.gameElapsed);
     }
 
-    // Calculate new position based on speed and heading
-    // (Using sin for X and cos for Z gives standard tank/car controls)
-    this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed;
-    this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed;
+    if (this.gameState === 'playing') {
+      // Apply friction to gradually slow down the wagon
+      this.wagonSpeed *= this.wagonOnPath ? this.wagonFriction : this.wagonSlowFriction;
 
-    this.wagon.updateWheelAngle(this.wagonSpeed);
+      // Stop micro-sliding when speed is extremely low
+      if (Math.abs(this.wagonSpeed) < 0.001) {
+        this.wagonSpeed = 0;
+      }
 
-    this.checkCollisions();
+      // Calculate new position based on speed and heading
+      // (Using sin for X and cos for Z gives standard tank/car controls)
+      this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed;
+      this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed;
 
-    if (this.followCamera) this.updateCamera();
+      this.wagon.updateWheelAngle(this.wagonSpeed);
+
+      this.checkCollisions();
+
+      if (this.followCamera) this.updateCamera();
+    }
   }
 
   checkCollisions() {
@@ -404,6 +469,9 @@ export class MyScene extends CGFscene {
     const wagonCX = this.wagonPosition.x - Math.sin(this.wagonAngle) * bodyHalfLength;
     const wagonCZ = this.wagonPosition.z - Math.cos(this.wagonAngle) * bodyHalfLength;
     const wagonRadius = Math.sqrt(bodyHalfLength * bodyHalfLength + bodyHalfWidth * bodyHalfWidth);
+
+    // todo: check if we can have the obstacle take damage porportional to the time spent there (current)
+    // «Wagon gets damage by hitting obstacles (example: loses a random HP number between 5 and 15)»
 
     if (this.rockPositions) {
       // Rock is a unit sphere (radius=1 in model space); world radius = pos.scale * rockScaleFactor
@@ -416,6 +484,7 @@ export class MyScene extends CGFscene {
         const dz = wagonCZ - rz;
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
           console.log("Collision with rock at", rx.toFixed(2), rz.toFixed(2));
+          this.removeHealth(this._dt*30);
         }
       }
     }
@@ -424,14 +493,18 @@ export class MyScene extends CGFscene {
       // Hay is a (1.5 x 1.0 x 1.0) box; bounding circle in XZ = sqrt(0.75^2 + 0.5^2) ≈ 0.90
       const HAY_MODEL_RADIUS = Math.sqrt(0.75 * 0.75 + 0.5 * 0.5);
       const hayRadius = HAY_MODEL_RADIUS * this.hayScaleFactor;
-      for (const pos of this.hayPositions) {
+      for (let i = 0; i < this.hayPositions.length; i++) {
+        const pos = this.hayPositions[i];
         const hx = pos.normX * this.groundScale;
         const hz = pos.normZ * this.groundScale;
         const combinedRadius = wagonRadius + hayRadius;
         const dx = wagonCX - hx;
         const dz = wagonCZ - hz;
+      
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
-          console.log("Collision with hay at", hx.toFixed(2), hz.toFixed(2));
+          console.log(`Collision with hay at index ${i}:`, hx.toFixed(2), hz.toFixed(2));
+          
+          this.pickUpHay(i);
         }
       }
     }
@@ -446,8 +519,14 @@ export class MyScene extends CGFscene {
         const dz = wagonCZ - tz;
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
           console.log("Collision with tree at", tx.toFixed(2), tz.toFixed(2));
+          this.removeHealth(this._dt*30);
         }
       }
+    }
+
+    const currentOnPath = this.isOnPath(wagonCX, wagonCZ);
+    if (currentOnPath ^ this.wagonOnPath) {
+      this.wagonOnPath = currentOnPath;
     }
 
     // Barn drop zone: wagon center inside the fence circle
@@ -457,29 +536,40 @@ export class MyScene extends CGFscene {
     this.fenceIntersected = (fdx * fdx + fdz * fdz) < (this.fenceRadius * this.fenceRadius);
     if (this.fenceIntersected && !wasInFence) {
       console.log("Entered barn area");
+      this.dropHay();
     } else if (!this.fenceIntersected && wasInFence) {
       console.log("Left barn area");
+      this.generateHay();
     }
   }
 
   updateCamera() {
-    const followDistance = 8.0;
-    const followHeight = 5;
-
     const wagonY = this.terrainHeight(this.wagonPosition.x, this.wagonPosition.z);
+    const target = vec3.fromValues(
+      this.wagonPosition.x, 
+      wagonY + this.cameraSteeringHeight, 
+      this.wagonPosition.z
+    );
 
-    const target = vec3.fromValues(this.wagonPosition.x, wagonY+this.cameraSteeringHeight, this.wagonPosition.z);
+    const offsetX = Math.sin(this.wagonAngle) * this.followDistance;
+    const offsetZ = Math.cos(this.wagonAngle) * this.followDistance;
 
-    const offsetX = Math.sin(this.wagonAngle) * followDistance;
-    const offsetZ = Math.cos(this.wagonAngle) * followDistance;
+    const desiredCamX = this.wagonPosition.x - offsetX;
+    const desiredCamZ = this.wagonPosition.z - offsetZ;
+    const desiredCamY = wagonY + this.followHeight; 
 
-    const camX = this.wagonPosition.x - offsetX;
-    const camZ = this.wagonPosition.z - offsetZ;
-    const camY = wagonY + followHeight; 
+    const terrainBehindY = this.terrainHeight(desiredCamX, desiredCamZ);
+    const safeCamY = Math.max(desiredCamY, terrainBehindY+0.1); 
 
-    const position = vec3.fromValues(camX, camY, camZ);
+    const desiredPosition = vec3.fromValues(desiredCamX, safeCamY, desiredCamZ);
 
-    this.camera.setPosition(position);
+    const currentPosition = this.camera.position;
+    const newPosition = vec3.create();
+
+    // vec3.lerp(out, a, b, t) glides from 'a' to 'b' by factor 't'
+    vec3.lerp(newPosition, currentPosition, desiredPosition, this.cameraLerpSpeed*this._dt);
+
+    this.camera.setPosition(newPosition);
     this.camera.setTarget(target);
   }
 
@@ -504,22 +594,224 @@ export class MyScene extends CGFscene {
     }
 
     // camera
-    if (this.gui.isKeyPressed("ArrowUp")) {
-      this.cameraSteeringHeight += 0.5;
+    if (this.gui.isKeyPressed("ArrowUp") && this.followHeight < 10) {
+      this.followHeight += 0.5;
     }
-    if (this.gui.isKeyPressed("ArrowDown")) {
-      this.cameraSteeringHeight -= 0.5;
+    if (this.gui.isKeyPressed("ArrowDown") && this.followHeight > 0) {
+      this.followHeight -= 0.5;
+    }
+
+    // Zoom in/out (Distance adjustment)
+    // We use Math.max and Math.min to clamp the zoom so they can't zoom too far or inside the wagon
+    if (this.gui.isKeyPressed("ArrowRight")) {
+      this.followDistance = Math.max(5.0, this.followDistance - 0.5); 
+    }
+    if (this.gui.isKeyPressed("ArrowLeft")) {
+      this.followDistance = Math.min(30.0, this.followDistance + 0.5);
     }
 
     // DEBUG
-    if (this.gui.isKeyPressed("KeyE")) {
-      this.wagon.updateHayCount(this.wagon.hayCount + 1);
-    }
-    if (this.gui.isKeyPressed("KeyQ")) {
-      this.wagon.updateHayCount(this.wagon.hayCount - 1);
-    }
+    const eDown = this.gui.isKeyPressed('KeyE');
+    if (eDown && !this._prevKeyE) this.wagon.updateHayCount(this.wagon.hayCount + 1);
+    this._prevKeyE = eDown;
+
+    const qDown = this.gui.isKeyPressed('KeyQ');
+    if (qDown && !this._prevKeyQ) this.wagon.updateHayCount(this.wagon.hayCount - 1);
+    this._prevKeyQ = qDown;
+
+    // ── Health test keys (single-press, +10 / -10 seconds) ───────────────
+    const uDown = this.gui.isKeyPressed('KeyU');
+    if (uDown && !this._prevKeyU) this.addHealth(20);
+    this._prevKeyU = uDown;
+
+    const iDown = this.gui.isKeyPressed('KeyI');
+    if (iDown && !this._prevKeyI) this.removeHealth(10);
+    this._prevKeyI = iDown;
+
+    const oneDown = this.gui.isKeyPressed('Digit1');
+    if (oneDown && !this._prevKey1) this.pickUpHay(0);
+    this._prevKey1 = oneDown;
+
+    const twoDown = this.gui.isKeyPressed('Digit2');
+    if (twoDown && !this._prevKey2) this.pickUpHay(1);
+    this._prevKey2 = twoDown;
+
+    const threeDown = this.gui.isKeyPressed('Digit3');
+    if (threeDown && !this._prevKey3) this.pickUpHay(2);
+    this._prevKey3 = threeDown;
+
+    const fourDown = this.gui.isKeyPressed('Digit4');
+    if (fourDown && !this._prevKey4) this.pickUpHay(3);
+    this._prevKey4 = fourDown;
+
+    const fiveDown = this.gui.isKeyPressed('Digit5');
+    if (fiveDown && !this._prevKey5) this.pickUpHay(4);
+    this._prevKey5 = fiveDown;
+    
+    const zeroDown = this.gui.isKeyPressed('Digit0');
+    if (zeroDown && !this._prevKey0) this.dropHay();
+    this._prevKey0 = zeroDown;
   }
 
+  // ── Barn / path / spawn helpers ─────────────────────────────────────────
+
+  /**
+   * Returns true when a world-space point is inside the fenced barn area
+   * (with a small buffer so nothing spawns right at the fence edge).
+   */
+  _isInsideFenceArea(wx, wz, buffer = 2.0) {
+    const dx = wx - this.barnX;
+    const dz = wz - this.barnZ;
+    const r  = this.fenceRadius + buffer;
+    return (dx * dx + dz * dz) < r * r;
+  }
+
+  /**
+   * Computes the two fixed UV-space path nodes that guarantee the MST path
+   * always has a branch leading directly to the barn entrance, plus the
+   * circular exclusion zone that keeps random nodes out of the fenced area.
+   */
+  _computePathConfig() {
+    const gS  = this.groundScale;
+    const sin = Math.sin(this.barnRotation);
+    const cos = Math.cos(this.barnRotation);
+
+    // Node A — just outside the fence entrance
+    const aWx = this.barnX + (this.fenceRadius + 1.5) * sin;
+    const aWz = this.barnZ + (this.fenceRadius + 1.5) * cos;
+
+    // Node B — further toward the centre, ensuring a clear path segment inward
+    const bWx = this.barnX + (this.fenceRadius + 6.0) * sin;
+    const bWz = this.barnZ + (this.fenceRadius + 6.0) * cos;
+
+    const toUV = (wx, wz) => [wx / gS + 0.5, wz / gS + 0.5];
+
+    return {
+      fixedPoints:    [toUV(aWx, aWz), toUV(bWx, bWz)],
+      exclusionZones: [{
+        cx: this.barnX / gS + 0.5,
+        cz: this.barnZ / gS + 0.5,
+        r:  (this.fenceRadius + 2.5) / gS,
+      }],
+    };
+  }
+
+  /**
+   * World-space position + heading for the wagon at (re)spawn time:
+   * just outside the fence entrance, pointed toward the centre.
+   */
+  _wagonSpawnPos() {
+    const sin = Math.sin(this.barnRotation);
+    const cos = Math.cos(this.barnRotation);
+    return {
+      x:     this.barnX + (this.fenceRadius + 1.0) * sin,
+      z:     this.barnZ + (this.fenceRadius + 1.0) * cos,
+      angle: this.barnRotation,   // wagon faces the same direction the barn front faces
+    };
+  }
+
+  // ── Health system helpers ────────────────────────────────────────────────
+
+  /**
+   * Increase health by `amount` seconds (capped at maxHealth).
+   * Call this when the wagon delivers hay to the barn (future), or from U key.
+   */
+  addHealth(amount = 10) {
+    this.health = Math.min(this.maxHealth, this.health + amount);
+    this._syncSiloToHealth();
+  }
+
+  /**
+   * Decrease health by `amount` seconds (floored at 0).
+   * Call this on collision damage (future), or from I key.
+   */
+  removeHealth(amount = 10) {
+    this.health = Math.max(0, this.health - amount);
+    this._syncSiloToHealth();
+  }
+
+  pickUpHay(index) {
+    if ((!index && index !== 0) || index < 0 || index >= this.hayPositions.length) return;
+    if (this.wagonHayCount >= 2) return;
+    
+    this.hayPositions.splice(index, 1);
+
+    this.wagonHayCount++;
+    this.wagon.updateHayCount(this.wagonHayCount);
+  }
+
+  dropHay() {
+    if (this.wagonHayCount <= 0) return;
+    this.addHealth(10*this.wagonHayCount);
+    this.wagonHayCount = 0;
+    this.wagon.updateHayCount(0);
+  }
+
+  /** Keep siloHayLevel in [0,1] in lock-step with the health countdown. */
+  _syncSiloToHealth() {
+    this.siloHayLevel = this.health / this.maxHealth;
+  }
+
+  /** Format a number of seconds as "M:SS". */
+  _formatTime(seconds) {
+    const s = Math.max(0, seconds);
+    const m = Math.floor(s / 60);
+    const ss = Math.floor(s % 60);
+    return `${m}:${ss.toString().padStart(2, '0')}`;
+  }
+
+  // ── Game state transitions ───────────────────────────────────────────────
+
+  /** Called when the player dismisses the start screen. */
+  startGame() {
+    if (this.gameState !== 'start') return;
+    this.gameState = 'playing';
+    this._startScreenEl.classList.add('hidden');
+  }
+
+  /** Called when health reaches 0 — shows the game over screen. */
+  triggerGameOver() {
+    if (this.gameState !== 'playing') return;
+    this.gameState = 'gameover';
+    this._gameoverTimeEl.textContent = this._formatTime(this.gameElapsed);
+    this._gameoverScreenEl.classList.remove('hidden');
+  }
+
+  /**
+   * Resets all game state and regenerates the world, then returns to the
+   * start screen.  Called by pressing R on the game over screen.
+   */
+  resetGame() {
+    if (this.gameState !== 'gameover') return;
+
+    // Reset health & timers
+    this.health           = this.maxHealth;
+    this.gameElapsed      = 0;
+    this.hasStartedMoving = false;
+    this.healthDisplay    = this._formatTime(this.maxHealth);
+    this.elapsedDisplay   = '0:00';
+    this._syncSiloToHealth();
+
+    // Reset wagon to spawn position in front of barn
+    const spawn = this._wagonSpawnPos();
+    this.wagonPosition = { x: spawn.x, z: spawn.z };
+    this.wagonAngle    = spawn.angle;
+    this.wagonSpeed    = 0;
+
+    this.hayPositions = [];
+
+    // Regenerate the world
+    this.generateTrees();
+    this.generateFlowers();
+    this.generateRocks();
+    this.generateHay();
+    this.rebuildGrass();
+
+    // Show start screen again
+    this._gameoverScreenEl.classList.add('hidden');
+    this._startScreenEl.classList.remove('hidden');
+    this.gameState = 'start';
+  }
 
   // CPU replicas of terrain.vert noise/fbm — used to place grass at correct height
   // we are simply replicating what was done in the vert shader to sync the poisition of the objects with the ground
@@ -550,13 +842,66 @@ export class MyScene extends CGFscene {
     return v;
   }
 
-  // Returns the world-space Y height of the terrain at world position (wx, wz).
-  // Mirrors: float h = fbm(aVertexPosition.xy * 1.5); displaced.z += h * uHeightScale;
-  // then scaled by groundScale via the model matrix.
+  /**
+   * Precomputes a 256×256 height grid by evaluating _fbm() at every texel
+   * using the same UV→local-coord mapping the vertex shader uses, then uploads
+   * it as a WebGL LUMINANCE texture (unit 1).  Both the GPU shader and the CPU
+   * sampler below use this identical data, so there is no float32/float64
+   * precision mismatch and objects sit exactly on the terrain.
+   *
+   * Must be called after this.uHeightScale is set.
+   */
+  _initTerrainHeightmap() {
+    const N = 256;
+    const pixels = new Uint8Array(N * N);
+    this._terrainGrid  = new Float32Array(N * N);
+    this._terrainGridN = N;
+
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) {
+        const u  = i / (N - 1);
+        const v  = j / (N - 1);
+        // Mirror exactly what terrain.vert does:
+        //   aTextureCoord → UV; aVertexPosition.xy*1.5 where local_x=u-0.5, local_y=0.5-v
+        const lx = (u - 0.5) * 1.5;
+        const ly = (0.5 - v) * 1.5;
+        const h  = this._fbm(lx, ly);
+        this._terrainGrid[j * N + i] = h;
+        pixels[j * N + i] = Math.min(255, Math.max(0, Math.round(h * 255)));
+      }
+    }
+
+    const gl = this.gl;
+    this._cpuHeightTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this._cpuHeightTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, N, N, 0,
+                  gl.LUMINANCE, gl.UNSIGNED_BYTE, pixels);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+
+  /**
+   * Returns the world-space Y height of the terrain at world position (wx, wz).
+   * Bilinearly interpolates from the precomputed CPU height grid so the result
+   * matches the GPU displacement exactly (same data source, no sin precision issue).
+   */
   terrainHeight(wx, wz) {
-    const lx =  (wx / this.groundScale) * 1.5;
-    const ly = -(wz / this.groundScale) * 1.5; // local Y = -world Z (due to -90° X rotation)
-    return this._fbm(lx, ly) * this.uHeightScale * this.groundScale;
+    const u  = Math.max(0, Math.min(1, wx / this.groundScale + 0.5));
+    const v  = Math.max(0, Math.min(1, wz / this.groundScale + 0.5));
+    const N  = this._terrainGridN;
+    const px = u * (N - 1);
+    const py = v * (N - 1);
+    const x0 = Math.floor(px), y0 = Math.floor(py);
+    const x1 = Math.min(x0 + 1, N - 1);
+    const y1 = Math.min(y0 + 1, N - 1);
+    const fx = px - x0, fy = py - y0;
+    const g  = this._terrainGrid;
+    const h  = g[y0*N+x0]*(1-fx)*(1-fy) + g[y0*N+x1]*fx*(1-fy)
+             + g[y1*N+x0]*(1-fx)*fy      + g[y1*N+x1]*fx*fy;
+    return h * this.uHeightScale * this.groundScale;
   }
 
   initShader() {
@@ -722,6 +1067,7 @@ export class MyScene extends CGFscene {
             let tempWz = (normCenterZ * (this.groundScale - 4.0)) + offsetZ;
 
             if (this.isOnPath(tempWx, tempWz)) continue;
+            if (this._isInsideFenceArea(tempWx, tempWz)) continue;
 
             let levels = Math.floor(Math.random() * 2) + 3;
             let blade = new MyGrass(this, levels, 0.1, 0.1 + Math.random() * 0.2);
@@ -754,15 +1100,17 @@ makeRng(seed) {
 }
 
   rebuildPath() {
-    this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    const { fixedPoints, exclusionZones } = this._computePathConfig();
+    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed, fixedPoints, exclusionZones);
     this.rebuildGrass();
   }
 
   newRandomPath() {
     this.pathSeed = Math.floor(Math.random() * 1000);
-    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed);
+    const { fixedPoints, exclusionZones } = this._computePathConfig();
+    this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed, fixedPoints, exclusionZones);
     this.rebuildGrass();
-    this.scene.generateTrees();
+    this.generateTrees();
   }
 
   saveCurrentPath() {
@@ -831,7 +1179,11 @@ makeRng(seed) {
           this.gl.TEXTURE_WRAP_T,
           this.gl.REPEAT,
         );
-        this.groundHeightTexture.bind(1);
+        // Bind the precomputed CPU height map to unit 1 — this is what the
+        // terrain vertex shader samples for displacement, and what terrainHeight()
+        // interpolates on the CPU side, so both are guaranteed to agree.
+        this.gl.activeTexture(this.gl.TEXTURE1);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this._cpuHeightTex);
         this.groundDirtTexture.bind(2);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
@@ -1193,7 +1545,8 @@ makeRng(seed) {
       const obj = new MyLSTree(this, randomW, randomL);
       obj.init();
       
-      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ }, this.treeMinDistanceToPath)) {
+      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ }, this.treeMinDistanceToPath)
+          && !this._isInsideFenceArea(randomX * this.groundScale, randomZ * this.groundScale)) {
         this.treePositions.push({
           obj: obj,
           x: randomX,
@@ -1230,7 +1583,8 @@ makeRng(seed) {
       const obj = new MyLSFlower(this, randomW, 3,8, randomLL, 0.3, randomP, randomPL);
       obj.init();
       
-      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ }, this.flowerMinDistanceToPath)) {
+      if (this.checkOutsideAllEdges({ x: randomX, z: randomZ }, this.flowerMinDistanceToPath)
+          && !this._isInsideFenceArea(randomX * this.groundScale, randomZ * this.groundScale)) {
         this.flowerPositions.push({
           obj: obj,
           x: randomX,
@@ -1258,7 +1612,8 @@ makeRng(seed) {
       let normX = (Math.random() - 0.5);
       let normZ = (Math.random() - 0.5);
       
-      if (this.checkOutsideAllEdges({ x: normX, z: normZ }, this.rockMinDistanceToPath)) {
+      if (this.checkOutsideAllEdges({ x: normX, z: normZ }, this.rockMinDistanceToPath)
+          && !this._isInsideFenceArea(normX * this.groundScale, normZ * this.groundScale)) {
         this.rockPositions.push({
           normX: normX,
           normZ: normZ,
@@ -1280,25 +1635,46 @@ makeRng(seed) {
   }
 
   generateHay() {
-    this.hayPositions = [];
-    let failedAttempts = 0;
+    const needed = this.numHay - this.hayPositions.length;
+    if (needed <= 0) return;
+  
+    const nodes = this.ground.pathNodes;   // UV-space [u, v] for every MST node
+    if (!nodes || nodes.length === 0) return;
 
-    for (let i = 0; i < this.numHay; i++) {
-      const normX = (Math.random() - 0.5);
-      const normZ = (Math.random() - 0.5);
+    // Skip the first 2 fixed nodes (they sit near the barn entrance).
+    // Also skip any node whose world position is still inside the fence area.
+    const candidates = nodes.slice(2).filter(([u, v]) => {
+      const wx = (u - 0.5) * this.groundScale;
+      const wz = (v - 0.5) * this.groundScale;
+      
+      if (this._isInsideFenceArea(wx, wz, 0)) return false;
+  
+      // Check if a hay bale already exists at this node location (to prevent stacking)
+      const normX = u - 0.5;
+      const normZ = v - 0.5;
 
-      if (this.checkOutsideAllEdges({ x: normX, z: normZ }, this.hayMinDistanceToPath)) {
-        this.hayPositions.push({
-          normX: normX,
-          normZ: normZ,
-          rotation: Math.random() * Math.PI * 2,
-        });
-      } else if (failedAttempts < this.numHay * 2) {
-        failedAttempts++;
-        i--;
-      } else {
-        break;
-      }
+      const isOccupied = this.hayPositions.some(bale => 
+        Math.abs(bale.normX - normX) < 0.001 && Math.abs(bale.normZ - normZ) < 0.001
+      );
+  
+      return !isOccupied;
+    });
+
+    // Fisher-Yates shuffle so we get a different set each call
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+
+    // Place one bale at each of the first numHay candidates
+    const count = Math.min(needed, candidates.length);
+    for (let i = 0; i < count; i++) {
+      const [u, v] = candidates[i];
+      this.hayPositions.push({
+        normX:    u - 0.5,                        // UV [0,1] → norm [-0.5, 0.5]
+        normZ:    v - 0.5,
+        rotation: Math.random() * Math.PI * 2,
+      });
     }
   }
 

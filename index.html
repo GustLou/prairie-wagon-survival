@@ -2,7 +2,7 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title>CGFexample</title>    
+    <title>Hay Rush</title>
     <link rel="icon" href="data:,">
 
 <style>
@@ -17,9 +17,206 @@ canvas {
     width: 100%;
     height: 100%;
 }
+
+/* ── Overlay system ───────────────────────────────────────────────────── */
+.overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 6, 2, 0.82);
+    z-index: 200;
+    backdrop-filter: blur(3px);
+    font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.overlay.hidden {
+    display: none;
+}
+
+/* ── Shared card ─────────────────────────────────────────────────────── */
+.screen-card {
+    background: linear-gradient(155deg, #2e1a0e 0%, #4a2e1a 60%, #3a2210 100%);
+    border: 2px solid #c8a442;
+    border-radius: 14px;
+    padding: 44px 64px 40px;
+    text-align: center;
+    color: #f0ddb0;
+    max-width: 480px;
+    width: 90vw;
+    box-shadow: 0 0 0 1px #7a5a20, 0 12px 48px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,220,100,0.15);
+}
+
+.title-icon {
+    font-size: 3em;
+    margin-bottom: 4px;
+    line-height: 1;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.8));
+}
+
+h1.screen-title {
+    font-size: 3em;
+    color: #f5c842;
+    margin: 0 0 6px;
+    letter-spacing: 4px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 30px rgba(245,200,66,0.3);
+    line-height: 1;
+}
+
+.screen-subtitle {
+    color: #c8a970;
+    font-style: italic;
+    font-size: 1em;
+    margin: 0 0 28px;
+}
+
+/* ── Controls table (start screen) ──────────────────────────────────── */
+.controls {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(200,164,66,0.3);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 28px;
+    text-align: left;
+}
+
+.controls-heading {
+    color: #c8a442;
+    font-size: 0.75em;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin: 0 0 12px;
+    text-align: center;
+}
+
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 10px;
+}
+
+.control-row:last-child { margin-bottom: 0; }
+
+.keys {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+    min-width: 120px;
+    justify-content: flex-end;
+}
+
+kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    background: linear-gradient(180deg, #e8c96e 0%, #b8912a 100%);
+    color: #2d1a08;
+    border-radius: 5px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    font-size: 0.82em;
+    box-shadow: 0 2px 0 #7a5a10, 0 3px 4px rgba(0,0,0,0.5);
+    border: 1px solid #f5d878;
+}
+
+.control-desc {
+    color: #d4b880;
+    font-size: 0.9em;
+    font-style: italic;
+}
+
+/* ── Hint (blink) ─────────────────────────────────────────────────────*/
+.hint {
+    color: #c8a442;
+    font-size: 0.88em;
+    letter-spacing: 1px;
+    margin: 0;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.35; }
+}
+
+/* ── Game over specifics ─────────────────────────────────────────────*/
+.time-alive {
+    font-size: 1.1em;
+    color: #d4b880;
+    margin: 0 0 28px;
+}
+
+.time-alive-value {
+    font-size: 1.5em;
+    color: #f5c842;
+    font-weight: bold;
+    display: block;
+    margin-top: 4px;
+}
+
+.restart-hint {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 10px 28px;
+    background: rgba(200,164,66,0.15);
+    border: 1px solid #c8a442;
+    border-radius: 7px;
+    color: #f0ddb0;
+    font-size: 0.95em;
+    letter-spacing: 1px;
+    animation: pulse 2s ease-in-out infinite;
+}
 </style>
 </head>
 <body>
+
+<!-- ── START SCREEN ─────────────────────────────────────────────────── -->
+<div id="start-screen" class="overlay">
+  <div class="screen-card">
+    <div class="title-icon">🌾</div>
+    <h1 class="screen-title">HAY RUSH</h1>
+    <p class="screen-subtitle">Keep the silo full — keep the farm alive</p>
+
+    <div class="controls">
+      <p class="controls-heading">Controls</p>
+      <div class="control-row">
+        <span class="keys">
+          <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
+        </span>
+        <span class="control-desc">Drive the wagon</span>
+      </div>
+      <div class="control-row">
+        <span class="keys">
+          <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>
+        </span>
+        <span class="control-desc">Tilt camera up / down</span>
+      </div>
+    </div>
+
+    <p class="hint">Press any key or click to start</p>
+  </div>
+</div>
+
+<!-- ── GAME OVER SCREEN ──────────────────────────────────────────────── -->
+<div id="gameover-screen" class="overlay hidden">
+  <div class="screen-card">
+    <div class="title-icon">🌾</div>
+    <h1 class="screen-title">GAME OVER</h1>
+    <p class="screen-subtitle">The silo ran dry...</p>
+
+    <div class="time-alive">
+      Time survived
+      <span class="time-alive-value" id="gameover-time">0:00</span>
+    </div>
+
+    <span class="restart-hint">Press <kbd>R</kbd> to restart</span>
+  </div>
+</div>
 
 <script type="module" src="main.js"></script>
 

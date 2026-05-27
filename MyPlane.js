@@ -72,30 +72,69 @@ export class MyPlane extends CGFobject {
     };
   }
 
-  // Generates an MST over `numPoints` random points in UV space [0,1].
-  // Pass a seed integer for reproducible layouts.
-  // Stores this.pathEdges (Float32Array padded to MAX_PATH_EDGES vec4s) and this.numEdges.
-  generateMSTEdges(numPoints, seed = 0) {
+  /**
+   * Generates an MST over `numPoints` points in UV space [0,1].
+   *
+   * @param {number}   numPoints      - Total node count (fixed + random).
+   * @param {number}   seed           - PRNG seed for reproducible random nodes.
+   * @param {Array}    fixedPoints    - UV coords [[u,v],...] prepended before random nodes.
+   *                                   These are guaranteed to be connected to each other
+   *                                   (consecutive pairs get a direct edge) and are the
+   *                                   seeds from which Prim's expands outward.
+   * @param {Array}    exclusionZones - [{cx,cz,r}] in UV space. Random nodes that fall
+   *                                   inside any zone are rejected and regenerated.
+   *
+   * Stores this.pathEdges (Float32Array padded to MAX_PATH_EDGES vec4s) and this.numEdges.
+   */
+  generateMSTEdges(numPoints, seed = 0, fixedPoints = [], exclusionZones = []) {
     const rng = this.seededRng(seed);
-    const pts = Array.from({ length: numPoints }, () => [rng(), rng()]);
-    // pts.push([0,0]);
+    const nFixed = fixedPoints.length;
+    const randomCount = numPoints - nFixed;
 
-    const inMST = new Array(numPoints).fill(false);
+    // Generate random points, skipping those inside any exclusion zone
+    const randomPts = [];
+    let attempts = 0;
+    while (randomPts.length < randomCount && attempts < randomCount * 100) {
+      attempts++;
+      const p = [rng(), rng()];
+      const blocked = exclusionZones.some(({ cx, cz, r }) => {
+        const dx = p[0] - cx, dz = p[1] - cz;
+        return (dx * dx + dz * dz) < r * r;
+      });
+      if (!blocked) randomPts.push(p);
+    }
+    // Safety fill if we somehow exhausted attempts
+    while (randomPts.length < randomCount) randomPts.push([rng(), rng()]);
+
+    // pts[0..nFixed-1] are the guaranteed fixed nodes; rest are random
+    const pts = [...fixedPoints, ...randomPts];
+    const n   = pts.length;
+
+    const inMST = new Array(n).fill(false);
     const edges = [];
-    inMST[0] = true;
 
-    for (let step = 0; step < numPoints - 1; step++) {
+    // Mark all fixed nodes as already in the MST and link them in order
+    for (let i = 0; i < nFixed; i++) inMST[i] = true;
+    for (let i = 0; i < nFixed - 1; i++) edges.push([pts[i], pts[i + 1]]);
+
+    // Fallback: if no fixed points, start with node 0 as usual
+    if (nFixed === 0) inMST[0] = true;
+
+    // Prim's algorithm for the remaining nodes
+    const stepsNeeded = n - Math.max(1, nFixed);
+    for (let step = 0; step < stepsNeeded; step++) {
       let best = { dist: Infinity, i: -1, j: -1 };
-      for (let i = 0; i < numPoints; i++) {
+      for (let i = 0; i < n; i++) {
         if (!inMST[i]) continue;
-        for (let j = 0; j < numPoints; j++) {
+        for (let j = 0; j < n; j++) {
           if (inMST[j]) continue;
           const dx = pts[i][0] - pts[j][0];
           const dy = pts[i][1] - pts[j][1];
-          const d = Math.sqrt(dx * dx + dy * dy);
+          const d  = Math.sqrt(dx * dx + dy * dy);
           if (d < best.dist) best = { dist: d, i, j };
         }
       }
+      if (best.j === -1) break;
       inMST[best.j] = true;
       edges.push([pts[best.i], pts[best.j]]);
     }
@@ -103,11 +142,14 @@ export class MyPlane extends CGFobject {
     // Pad to MAX_PATH_EDGES so gl.uniform4fv always fills the full declared array
     const flat = new Float32Array(MyPlane.MAX_PATH_EDGES * 4);
     edges.forEach(([a, b], i) => {
+      if (i >= MyPlane.MAX_PATH_EDGES) return;
       flat[i * 4]     = a[0]; flat[i * 4 + 1] = a[1];
       flat[i * 4 + 2] = b[0]; flat[i * 4 + 3] = b[1];
     });
     this.pathEdges = flat;
-    this.numEdges = edges.length;
+    this.numEdges  = Math.min(edges.length, MyPlane.MAX_PATH_EDGES);
+    // Store all node UV positions so the scene can place objects on the path
+    this.pathNodes = pts;
     return edges;
   }
 

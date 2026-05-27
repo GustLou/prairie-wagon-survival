@@ -134,6 +134,13 @@ export class MyInterface extends CGFinterface {
     siloFolder.add(this.scene, 'siloHayLevel', 0, 1, 0.01).name('Hay Level');
 
 
+    // ── Health / Timer HUD ────────────────────────────────────────────────
+    const healthFolder = this.gui.addFolder('Health');
+    healthFolder.add(this.scene, 'elapsedDisplay').name('⏱ Time Played').listen();
+    healthFolder.add(this.scene, 'healthDisplay').name('❤ Health Left').listen();
+    healthFolder.add(this.scene, 'siloHayLevel', 0, 1, 0.01).name('Silo Level').listen();
+    healthFolder.open();
+
     const wagonFolder = this.gui.addFolder('Wagon');
     wagonFolder.add(this.scene, 'displayWagon').name('Display');
     wagonFolder.add(this.scene, 'wagonScaleFactor').name('Scale Factor');
@@ -155,8 +162,17 @@ export class MyInterface extends CGFinterface {
 
   processKeyDown(event) {
     // called when a key is pressed down
-    // mark it as active in the array
-    this.activeKeys[event.code]=true;
+    this.activeKeys[event.code] = true;
+
+    // ── Game state transitions ────────────────────────────────────────────
+    if (this.scene.gameState === 'start') {
+      // Any key dismisses the start screen and begins the game
+      this.scene.startGame();
+      return;
+    }
+    if (this.scene.gameState === 'gameover' && event.code === 'KeyR') {
+      this.scene.resetGame();
+    }
   }
 
   processKeyUp(event) {
