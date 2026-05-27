@@ -15,6 +15,7 @@ import { MyLSTree } from "./tree/MyLSTree.js";
 import { MyLSFlower } from "./tree/MyLSFlower.js";
 import { MyBarn } from "./MyBarn.js";
 import { MyCircularFence } from "./MyCircularFence.js";
+import { MySquareFence } from "./MySquareFence.js";
 import { MyHaySilo } from "./MyHaySilo.js";
 import { MyHay } from "./hay/MyHay.js";
 import { MyWagon } from "./wagon/MyWagon.js";
@@ -96,7 +97,7 @@ export class MyScene extends CGFscene {
     this.treeMinDistanceToPath = 0.03;
     this.flowerMinDistanceToPath = 0.03;
     this.flowerDensity = 0.1; // amount of flwoers per unit squared
-    this.treeDensity = 0.065; // amount of trees per unit squared
+    this.treeDensity = 0.03; // amount of trees per unit squared
     this.grassMinDistanceToPath = 0.03;
 
     //Initialize Materials and lights
@@ -165,7 +166,7 @@ export class MyScene extends CGFscene {
     this.pathWidth = 0.03;
 
     this.globalScaleFactor = 1;
-    this.skyScaleFactor    = 35;
+    this.skyScaleFactor    = 50;
     this.treeScaleFactor   = 0.5;
     this.flowerScaleFactor = 0.5;
 
@@ -222,6 +223,13 @@ export class MyScene extends CGFscene {
     this.wagonTurnRate = 0.4;
     this.wagonOnPath = true;
 
+    // 180-Degree Turn Animation State
+    this.isWagonTurning = false;
+    this.turnAnimTimer = 0;
+    this.turnAnimDuration = 0.8; // Duration of the animation in seconds
+    this.startTurnAngle = 0;
+    this.targetTurnAngle = 0;
+
     this.hayPositions = [];
     this.hayCollisionIndex = -1;
 
@@ -234,6 +242,7 @@ export class MyScene extends CGFscene {
     // (barnX/Z/Rotation/Scale/fenceRadius defined early above for path generation)
     this.barn = new MyBarn(this);
     this.fence = new MyCircularFence(this, this.barnX, this.barnZ, this.fenceRadius, 48);
+    this.worldBorder = new MySquareFence(this, 0,0, this.groundScale, 20);
     this.fenceIntersected = false; // GUI toggle for now; wagon collision will drive this later
 
     this.displayBarn  = true;
@@ -421,6 +430,44 @@ export class MyScene extends CGFscene {
     // Only run gameplay logic while actually playing
     if (this.gameState === 'playing') {
       this.checkKeys();
+      
+      // --- WAGON TURN ANIMATION LOGIC ---
+      if (this.isWagonTurning) {
+        this.turnAnimTimer += this._dt;
+        let progress = this.turnAnimTimer / this.turnAnimDuration;
+        
+        if (progress >= 1.0) {
+          if (progress >= 2.0) {
+            this.isWagonTurning = false; // Animation finished
+            
+            // Keep the angle wrapped nicely within 0 to 2π
+            this.wagonAngle = this.targetTurnAngle % (Math.PI * 2);
+          } else {
+            // section to let the wagon move forward a bit
+            this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
+            this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
+          }
+        } else {
+          // Apply Smoothstep easing for a natural turn
+          const ease = progress * progress * (3 - 2 * progress);
+          this.wagonAngle = this.startTurnAngle + (Math.PI * ease);
+        }
+      } else {
+        // Apply friction to gradually slow down the wagon
+        this.wagonSpeed *= this.wagonOnPath ? this.wagonFriction : this.wagonSlowFriction;
+
+        // Stop micro-sliding when speed is extremely low
+        if (Math.abs(this.wagonSpeed) < 0.001) {
+          this.wagonSpeed = 0;
+        }
+
+        // Calculate new position based on speed and heading
+        // (Using sin for X and cos for Z gives standard tank/car controls)
+        this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
+        this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
+
+        this.wagon.updateWheelAngle(this.wagonSpeed);
+      }
 
       // ── Health / timer tick ─────────────────────────────────────────────
       // Latch first movement (checked after checkKeys so speed is already updated).
@@ -439,23 +486,6 @@ export class MyScene extends CGFscene {
       }
       this.healthDisplay  = this._formatTime(this.health);
       this.elapsedDisplay = this._formatTime(this.gameElapsed);
-    }
-
-    if (this.gameState === 'playing') {
-      // Apply friction to gradually slow down the wagon
-      this.wagonSpeed *= this.wagonOnPath ? this.wagonFriction : this.wagonSlowFriction;
-
-      // Stop micro-sliding when speed is extremely low
-      if (Math.abs(this.wagonSpeed) < 0.001) {
-        this.wagonSpeed = 0;
-      }
-
-      // Calculate new position based on speed and heading
-      // (Using sin for X and cos for Z gives standard tank/car controls)
-      this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed;
-      this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed;
-
-      this.wagon.updateWheelAngle(this.wagonSpeed);
 
       this.checkCollisions();
 
@@ -544,6 +574,32 @@ export class MyScene extends CGFscene {
     //   console.log("Left barn area");
     //   this.generateHay();
     // }
+
+    // calculate the angle of the wagon relative to the fence center
+    const fenceAngle = Math.atan2(fdz, fdx);
+
+    if (this.fenceIntersected && !this.fence._isInEntrance(fenceAngle)) {
+      this.turnWagon180();
+    }
+
+    // world border collision
+    if (!this.worldBorder.containsPoint(wagonCX, wagonCZ)) {
+      this.turnWagon180();
+    }
+  }
+
+  /**
+   * Triggers a 180-degree rotation animation.
+   */
+  turnWagon180() {
+    // Prevent the animation from restarting if it's already in progress
+    if (this.isWagonTurning) return; 
+
+    this.isWagonTurning = true;
+    this.wagonSpeed *= 2.5; // make the wagon faster so it gets out of forbidden zone and let friction reduce the velocity afterwards
+    this.turnAnimTimer = 0;
+    this.startTurnAngle = this.wagonAngle;
+    this.targetTurnAngle = this.wagonAngle + Math.PI; 
   }
 
   updateCamera() {
@@ -565,12 +621,16 @@ export class MyScene extends CGFscene {
     const safeCamY = Math.max(desiredCamY, terrainBehindY+0.1); 
 
     const desiredPosition = vec3.fromValues(desiredCamX, safeCamY, desiredCamZ);
-
     const currentPosition = this.camera.position;
     const newPosition = vec3.create();
 
-    // vec3.lerp(out, a, b, t) glides from 'a' to 'b' by factor 't'
-    vec3.lerp(newPosition, currentPosition, desiredPosition, this.cameraLerpSpeed*this._dt);
+    if (this.isWagonTurning) {
+      // Snap directly to desired position; bypass lerp entirely
+      vec3.copy(newPosition, desiredPosition);
+    } else {
+      // vec3.lerp(out, a, b, t) glides from 'a' to 'b' by factor 't'
+      vec3.lerp(newPosition, currentPosition, desiredPosition, this.cameraLerpSpeed * this._dt);
+    }
 
     this.camera.setPosition(newPosition);
     this.camera.setTarget(target);
@@ -628,10 +688,14 @@ export class MyScene extends CGFscene {
       this.followDistance = Math.min(30.0, this.followDistance + 0.5);
     }
 
-    // ── Health test keys (single-press, +10 / -10 seconds) ───────────────
-    const uDown = this.gui.isKeyPressed('KeyU');
-    if (uDown && !this._prevKeyU) this.addHealth(20);
+    const uDown = this.gui.isKeyPressed('KeyU'); // uturn
+    if (uDown && !this._prevKeyU) this.turnWagon180();
     this._prevKeyU = uDown;
+
+    // ── Health test keys (single-press, +10 / -10 seconds) ───────────────
+    const kDown = this.gui.isKeyPressed('KeyK');
+    if (kDown && !this._prevKeyK) this.addHealth(20);
+    this._prevKeyK = kDown;
 
     const iDown = this.gui.isKeyPressed('KeyI');
     if (iDown && !this._prevKeyI) this.removeHealth(10);
@@ -1406,6 +1470,13 @@ makeRng(seed) {
       this.pushMatrix();
         this.multMatrix(sca);
         this.fence.display();
+      this.popMatrix();
+    }
+
+    if (this.worldBorder) {
+      this.pushMatrix();
+        this.multMatrix(sca);
+        this.worldBorder.display();
       this.popMatrix();
     }
 
