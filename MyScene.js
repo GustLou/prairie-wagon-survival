@@ -146,7 +146,7 @@ export class MyScene extends CGFscene {
     
     this.followCamera = false;
 
-    this.displayAll      = false;
+    this.displayAll       = true;
     this.displayAxis      = this.displayAll;
     this.displaySky       = this.displayAll;
     this.displaySun       = this.displayAll;
@@ -211,11 +211,13 @@ export class MyScene extends CGFscene {
     this.wagonPosition = { x: spawn.x, z: spawn.z };
     this.wagonAngle    = spawn.angle;
     this.wagonSpeed = 0;                 // Current velocity
-    this.cameraSteeringHeight = 1;
+    this.cameraSteeringHeight = 3;
     
     this.wagonAcceleration = 0.01;       // How fast it accelerates per frame
     this.wagonFriction = 0.92;           // Friction to slow it down when keys are released
     this.wagonTurnRate = 0.4;            // Base turn rate (will be multiplied by speed)
+
+    this.hayPositions = [];
 
     this.generateTrees();
     this.generateFlowers();
@@ -263,6 +265,8 @@ export class MyScene extends CGFscene {
     this._startScreenEl    = document.getElementById('start-screen');
     this._gameoverScreenEl = document.getElementById('gameover-screen');
     this._gameoverTimeEl   = document.getElementById('gameover-time');
+
+    this.wagonHayCount = 0;
 
     // Clicking the start card also starts the game (same as any key press)
     this._startScreenEl.addEventListener('click', () => this.startGame());
@@ -452,7 +456,7 @@ export class MyScene extends CGFscene {
   }
 
   updateCamera() {
-    const followDistance = 8.0;
+    const followDistance = 16.0;
     const followHeight = 5;
 
     const wagonY = this.terrainHeight(this.wagonPosition.x, this.wagonPosition.z);
@@ -501,12 +505,13 @@ export class MyScene extends CGFscene {
     }
 
     // DEBUG
-    if (this.gui.isKeyPressed("KeyE")) {
-      this.wagon.updateHayCount(this.wagon.hayCount + 1);
-    }
-    if (this.gui.isKeyPressed("KeyQ")) {
-      this.wagon.updateHayCount(this.wagon.hayCount - 1);
-    }
+    const eDown = this.gui.isKeyPressed('KeyE');
+    if (eDown && !this._prevKeyE) this.wagon.updateHayCount(this.wagon.hayCount + 1);
+    this._prevKeyE = eDown;
+
+    const qDown = this.gui.isKeyPressed('KeyQ');
+    if (qDown && !this._prevKeyQ) this.wagon.updateHayCount(this.wagon.hayCount - 1);
+    this._prevKeyQ = qDown;
 
     // ── Health test keys (single-press, +10 / -10 seconds) ───────────────
     const uDown = this.gui.isKeyPressed('KeyU');
@@ -516,6 +521,30 @@ export class MyScene extends CGFscene {
     const iDown = this.gui.isKeyPressed('KeyI');
     if (iDown && !this._prevKeyI) this.removeHealth(10);
     this._prevKeyI = iDown;
+
+    const oneDown = this.gui.isKeyPressed('Digit1');
+    if (oneDown && !this._prevKey1) this.pickUpHay(0);
+    this._prevKey1 = oneDown;
+
+    const twoDown = this.gui.isKeyPressed('Digit2');
+    if (twoDown && !this._prevKey2) this.pickUpHay(1);
+    this._prevKey2 = twoDown;
+
+    const threeDown = this.gui.isKeyPressed('Digit3');
+    if (threeDown && !this._prevKey3) this.pickUpHay(2);
+    this._prevKey3 = threeDown;
+
+    const fourDown = this.gui.isKeyPressed('Digit4');
+    if (fourDown && !this._prevKey4) this.pickUpHay(3);
+    this._prevKey4 = fourDown;
+
+    const fiveDown = this.gui.isKeyPressed('Digit5');
+    if (fiveDown && !this._prevKey5) this.pickUpHay(4);
+    this._prevKey5 = fiveDown;
+    
+    const zeroDown = this.gui.isKeyPressed('Digit0');
+    if (zeroDown && !this._prevKey0) this.dropHay();
+    this._prevKey0 = zeroDown;
   }
 
 
@@ -596,6 +625,25 @@ export class MyScene extends CGFscene {
     this._syncSiloToHealth();
   }
 
+  pickUpHay(index) {
+    if ((!index && index !== 0) || index < 0 || index >= this.hayPositions.length) return;
+    if (this.wagonHayCount >= 2) return;
+    
+    this.hayPositions.splice(index, 1);
+
+    this.wagonHayCount++;
+    this.wagon.updateHayCount(this.wagonHayCount);
+  }
+
+  dropHay() {
+    if (this.wagonHayCount <= 0) return;
+    this.addHealth(10*this.wagonHayCount);
+    this.wagonHayCount = 0;
+    this.wagon.updateHayCount(0);
+
+    this.generateHay();
+  }
+
   /** Keep siloHayLevel in [0,1] in lock-step with the health countdown. */
   _syncSiloToHealth() {
     this.siloHayLevel = this.health / this.maxHealth;
@@ -646,6 +694,8 @@ export class MyScene extends CGFscene {
     this.wagonPosition = { x: spawn.x, z: spawn.z };
     this.wagonAngle    = spawn.angle;
     this.wagonSpeed    = 0;
+
+    this.hayPositions = [];
 
     // Regenerate the world
     this.generateTrees();
@@ -1482,8 +1532,9 @@ makeRng(seed) {
   }
 
   generateHay() {
-    this.hayPositions = [];
-
+    const needed = this.numHay - this.hayPositions.length;
+    if (needed <= 0) return;
+  
     const nodes = this.ground.pathNodes;   // UV-space [u, v] for every MST node
     if (!nodes || nodes.length === 0) return;
 
@@ -1492,7 +1543,18 @@ makeRng(seed) {
     const candidates = nodes.slice(2).filter(([u, v]) => {
       const wx = (u - 0.5) * this.groundScale;
       const wz = (v - 0.5) * this.groundScale;
-      return !this._isInsideFenceArea(wx, wz, 0);
+      
+      if (this._isInsideFenceArea(wx, wz, 0)) return false;
+  
+      // Check if a hay bale already exists at this node location (to prevent stacking)
+      const normX = u - 0.5;
+      const normZ = v - 0.5;
+
+      const isOccupied = this.hayPositions.some(bale => 
+        Math.abs(bale.normX - normX) < 0.001 && Math.abs(bale.normZ - normZ) < 0.001
+      );
+  
+      return !isOccupied;
     });
 
     // Fisher-Yates shuffle so we get a different set each call
@@ -1502,7 +1564,7 @@ makeRng(seed) {
     }
 
     // Place one bale at each of the first numHay candidates
-    const count = Math.min(this.numHay, candidates.length);
+    const count = Math.min(needed, candidates.length);
     for (let i = 0; i < count; i++) {
       const [u, v] = candidates[i];
       this.hayPositions.push({
