@@ -451,7 +451,139 @@ export class MyScene extends CGFscene {
 
       this.wagon.updateWheelAngle(this.wagonSpeed);
 
+      this.checkCollisions();
+
       if (this.followCamera) this.updateCamera();
+    }
+  }
+
+  checkCollisions() {
+    // Geometric center is baseLength/2 behind wagonPosition along the heading.
+    const bodyHalfLength = (this.wagon.baseLength / 2) * this.wagonScaleFactor; // 1.25 * 0.35 = 0.4375
+    const bodyHalfWidth  = (this.wagon.baseWidth  / 2) * this.wagonScaleFactor; // 1.0  * 0.35 = 0.35
+    const wagonCX = this.wagonPosition.x - Math.sin(this.wagonAngle) * bodyHalfLength;
+    const wagonCZ = this.wagonPosition.z - Math.cos(this.wagonAngle) * bodyHalfLength;
+    const wagonRadius = Math.sqrt(bodyHalfLength * bodyHalfLength + bodyHalfWidth * bodyHalfWidth);
+
+    if (this.rockPositions) {
+      // Rock is a unit sphere (radius=1 in model space); world radius = pos.scale * rockScaleFactor
+      for (const pos of this.rockPositions) {
+        const rx = pos.normX * this.groundScale;
+        const rz = pos.normZ * this.groundScale;
+        const rockRadius = pos.scale * this.rockScaleFactor;
+        const combinedRadius = wagonRadius + rockRadius;
+        const dx = wagonCX - rx;
+        const dz = wagonCZ - rz;
+        if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
+          console.log("Collision with rock at", rx.toFixed(2), rz.toFixed(2));
+        }
+      }
+    }
+
+    if (this.hayPositions) {
+      // Hay is a (1.5 x 1.0 x 1.0) box; bounding circle in XZ = sqrt(0.75^2 + 0.5^2) ≈ 0.90
+      const HAY_MODEL_RADIUS = Math.sqrt(0.75 * 0.75 + 0.5 * 0.5);
+      const hayRadius = HAY_MODEL_RADIUS * this.hayScaleFactor;
+      for (const pos of this.hayPositions) {
+        const hx = pos.normX * this.groundScale;
+        const hz = pos.normZ * this.groundScale;
+        const combinedRadius = wagonRadius + hayRadius;
+        const dx = wagonCX - hx;
+        const dz = wagonCZ - hz;
+        if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
+          console.log("Collision with hay at", hx.toFixed(2), hz.toFixed(2));
+        }
+      }
+    }
+
+    if (this.treePositions) {
+      for (const pos of this.treePositions) {
+        const tx = pos.x * this.groundScale + pos.randomOffset;
+        const tz = pos.z * this.groundScale + pos.randomOffset;
+        const treeRadius = pos.obj.trunkWidth * pos.scale * this.treeScaleFactor;
+        const combinedRadius = wagonRadius + treeRadius;
+        const dx = wagonCX - tx;
+        const dz = wagonCZ - tz;
+        if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
+          console.log("Collision with tree at", tx.toFixed(2), tz.toFixed(2));
+        }
+      }
+    }
+
+    // Barn drop zone: wagon center inside the fence circle
+    const fdx = wagonCX - this.barnX;
+    const fdz = wagonCZ - this.barnZ;
+    const wasInFence = this.fenceIntersected;
+    this.fenceIntersected = (fdx * fdx + fdz * fdz) < (this.fenceRadius * this.fenceRadius);
+    if (this.fenceIntersected && !wasInFence) {
+      console.log("Entered barn area");
+    } else if (!this.fenceIntersected && wasInFence) {
+      console.log("Left barn area");
+    }
+  }
+
+  checkCollisions() {
+    // Geometric center is baseLength/2 behind wagonPosition along the heading.
+    const bodyHalfLength = (this.wagon.baseLength / 2) * this.wagonScaleFactor; // 1.25 * 0.35 = 0.4375
+    const bodyHalfWidth  = (this.wagon.baseWidth  / 2) * this.wagonScaleFactor; // 1.0  * 0.35 = 0.35
+    const wagonCX = this.wagonPosition.x - Math.sin(this.wagonAngle) * bodyHalfLength;
+    const wagonCZ = this.wagonPosition.z - Math.cos(this.wagonAngle) * bodyHalfLength;
+    const wagonRadius = Math.sqrt(bodyHalfLength * bodyHalfLength + bodyHalfWidth * bodyHalfWidth);
+
+    if (this.rockPositions) {
+      // Rock is a unit sphere (radius=1 in model space); world radius = pos.scale * rockScaleFactor
+      for (const pos of this.rockPositions) {
+        const rx = pos.normX * this.groundScale;
+        const rz = pos.normZ * this.groundScale;
+        const rockRadius = pos.scale * this.rockScaleFactor;
+        const combinedRadius = wagonRadius + rockRadius;
+        const dx = wagonCX - rx;
+        const dz = wagonCZ - rz;
+        if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
+          console.log("Collision with rock at", rx.toFixed(2), rz.toFixed(2));
+        }
+      }
+    }
+
+    if (this.hayPositions) {
+      // Hay is a (1.5 x 1.0 x 1.0) box; bounding circle in XZ = sqrt(0.75^2 + 0.5^2) ≈ 0.90
+      const HAY_MODEL_RADIUS = Math.sqrt(0.75 * 0.75 + 0.5 * 0.5);
+      const hayRadius = HAY_MODEL_RADIUS * this.hayScaleFactor;
+      for (const pos of this.hayPositions) {
+        const hx = pos.normX * this.groundScale;
+        const hz = pos.normZ * this.groundScale;
+        const combinedRadius = wagonRadius + hayRadius;
+        const dx = wagonCX - hx;
+        const dz = wagonCZ - hz;
+        if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
+          console.log("Collision with hay at", hx.toFixed(2), hz.toFixed(2));
+        }
+      }
+    }
+
+    if (this.treePositions) {
+      for (const pos of this.treePositions) {
+        const tx = pos.x * this.groundScale + pos.randomOffset;
+        const tz = pos.z * this.groundScale + pos.randomOffset;
+        const treeRadius = pos.obj.trunkWidth * pos.scale * this.treeScaleFactor;
+        const combinedRadius = wagonRadius + treeRadius;
+        const dx = wagonCX - tx;
+        const dz = wagonCZ - tz;
+        if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
+          console.log("Collision with tree at", tx.toFixed(2), tz.toFixed(2));
+        }
+      }
+    }
+
+    // Barn drop zone: wagon center inside the fence circle
+    const fdx = wagonCX - this.barnX;
+    const fdz = wagonCZ - this.barnZ;
+    const wasInFence = this.fenceIntersected;
+    this.fenceIntersected = (fdx * fdx + fdz * fdz) < (this.fenceRadius * this.fenceRadius);
+    if (this.fenceIntersected && !wasInFence) {
+      console.log("Entered barn area");
+    } else if (!this.fenceIntersected && wasInFence) {
+      console.log("Left barn area");
     }
   }
 
