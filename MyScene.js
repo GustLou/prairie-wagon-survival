@@ -119,13 +119,10 @@ export class MyScene extends CGFscene {
       "shaders/terrain.vert",
       "shaders/terrain.frag",
     );
-    // this.terrainShader.setUniformsValues({
-    //   uColorMap: 0,
-    //   uHeightMap: 1,
-    //   uHeightScale: 0.09, // was 0.6 — much more subtle
-    //   uAmbient: 0.6,
-    //   uLightDir: [0.0, 0.8, 0.5],
-    // });
+    // Cache path-edge uniform locations once so display() doesn't call
+    // getUniformLocation (a relatively expensive driver round-trip) every frame.
+    this._uPathEdgesLoc = this.gl.getUniformLocation(this.terrainShader.program, 'uPathEdges');
+    this._uNumEdgesLoc  = this.gl.getUniformLocation(this.terrainShader.program, 'uNumEdges');
     this.cloudSphere = new MyCloudSphere(this, 0.97, 40, 60);
 
     this.cloudAppearance = new CGFappearance(this);
@@ -282,6 +279,10 @@ export class MyScene extends CGFscene {
     this._gameoverTimeEl   = document.getElementById('gameover-time');
 
     this.wagonHayCount = 0;
+
+    // Pre-allocated scratch arrays — reused every frame to avoid GC pressure.
+    this._bladeWorldPos = [0, 0]; // grass wind shader uBladeWorldPos
+    this._lastGSF = null;         // cached globalScaleFactor for sca matrix
 
     // Clicking the start card also starts the game (same as any key press)
     this._startScreenEl.addEventListener('click', () => this.startGame());
@@ -523,7 +524,6 @@ export class MyScene extends CGFscene {
         const dx = wagonCX - rx;
         const dz = wagonCZ - rz;
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
-          console.log("Collision with rock at", rx.toFixed(2), rz.toFixed(2));
           this.removeHealth(this._dt*30);
         }
       }
@@ -543,8 +543,6 @@ export class MyScene extends CGFscene {
         const dz = wagonCZ - hz;
       
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
-          console.log(`Collision with hay at index ${i}:`, hx.toFixed(2), hz.toFixed(2));
-          
           this.hayCollisionIndex = i;
           break;
         }
@@ -560,7 +558,6 @@ export class MyScene extends CGFscene {
         const dx = wagonCX - tx;
         const dz = wagonCZ - tz;
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
-          console.log("Collision with tree at", tx.toFixed(2), tz.toFixed(2));
           this.removeHealth(this._dt*30);
         }
       }
@@ -1228,25 +1225,13 @@ makeRng(seed) {
 
     if (this.displayAxis) this.axis.display();
 
-    // to be applied to everything (must be added manually inside each pushMatrix-popMatrix codeblock)
-    var sca = [
-      this.globalScaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      this.globalScaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      this.globalScaleFactor,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-    ];
+    // Rebuild the global-scale matrix only when the slider actually changes.
+    if (this._lastGSF !== this.globalScaleFactor) {
+      this._lastGSF = this.globalScaleFactor;
+      const g = this.globalScaleFactor;
+      this._sca = [g,0,0,0, 0,g,0,0, 0,0,g,0, 0,0,0,1];
+    }
+    const sca = this._sca;
 
     if (this.displayGround) {
       this.pushMatrix();
@@ -1297,10 +1282,9 @@ makeRng(seed) {
           uLightDir: [0.0, 0.8, 0.5],
           uPathWidth: this.pathWidth,
         });
-        // Pass MST edges
-        const prog = this.terrainShader.program;
-        this.gl.uniform4fv(this.gl.getUniformLocation(prog, 'uPathEdges'), this.ground.pathEdges);
-        this.gl.uniform1i(this.gl.getUniformLocation(prog, 'uNumEdges'), this.ground.numEdges);
+        // Pass MST edges (uniform locations cached at shader-creation time)
+        this.gl.uniform4fv(this._uPathEdgesLoc, this.ground.pathEdges);
+        this.gl.uniform1i(this._uNumEdgesLoc,   this.ground.numEdges);
         this.ground.display();
         this.setActiveShader(this.defaultShader);
       this.popMatrix();
@@ -1365,13 +1349,10 @@ makeRng(seed) {
         // 1. Calculate dynamic world positions based on current ground scale
         let wx = pos.normX * this.groundScale;
         let wz = pos.normZ * this.groundScale;
-        
-        // 2. Fetch the terrain height so the rock sits on the ground
-        let wy = this.terrainHeight(wx, wz);
 
         this.pushMatrix();
           this.multMatrix(sca);
-          this.translate(wx, wy, wz); // Move rock to its spot on the terrain
+          this.translate(wx, pos.wy, wz);
           
           // Apply random rotations so rocks don't all look identical
           this.rotate(pos.rotY, 0, 1, 0); 
@@ -1392,9 +1373,12 @@ makeRng(seed) {
       for (let i = 0; i < this.grassBlades.length; i++) {
         let g = this.grassBlades[i];
 
+        // Reuse the pre-allocated array — avoids allocating [wx, wz] per blade per frame.
+        this._bladeWorldPos[0] = g.wx;
+        this._bladeWorldPos[1] = g.wz;
         this.windShader.setUniformsValues({
             uHealth: g.object.health,
-            uBladeWorldPos: [g.wx, g.wz]
+            uBladeWorldPos: this._bladeWorldPos
         });
 
         this.pushMatrix();
@@ -1422,12 +1406,10 @@ makeRng(seed) {
 
         const finalX = pos.x * this.groundScale + pos.randomOffset;
         const finalZ = pos.z * this.groundScale + pos.randomOffset;
-        const finalY = this.terrainHeight(finalX, finalZ);
-        
+
         this.pushMatrix();
           this.multMatrix(sca);
-
-          this.translate(finalX, finalY, finalZ);
+          this.translate(finalX, pos.wy, finalZ);
           this.rotate(pos.rotation, 0, 1, 0);
           const finalScale = pos.scale * this.treeScaleFactor;
           this.scale(finalScale, finalScale, finalScale);
@@ -1498,12 +1480,10 @@ makeRng(seed) {
 
         const finalX = pos.x * this.groundScale + pos.randomOffset;
         const finalZ = pos.z * this.groundScale + pos.randomOffset;
-        const finalY = this.terrainHeight(finalX, finalZ);
-        
+
         this.pushMatrix();
           this.multMatrix(sca);
-          
-          this.translate(finalX, finalY, finalZ);
+          this.translate(finalX, pos.wy, finalZ);
           this.rotate(pos.rotation, 0, 1, 0);
           const finalScale = pos.scale * this.flowerScaleFactor;
           this.scale(finalScale, finalScale, finalScale);
@@ -1514,54 +1494,28 @@ makeRng(seed) {
     }
 
     if (this.displayHay && this.hayPositions) {
+      // wy is pre-baked at generation time (5-corner terrain max), no per-frame sampling needed.
       for (let i = 0; i < this.hayPositions.length; i++) {
         const pos = this.hayPositions[i];
         const wx = pos.normX * this.groundScale;
         const wz = pos.normZ * this.groundScale;
-
-        // Sample all 4 corners of the bale footprint and use the highest point,
-        // so the bale sits on top of the terrain even on steep slopes.
-        const hw = 0.75 * this.hayScaleFactor; // half of bale width  (1.5 * scale / 2)
-        const hd = 0.5  * this.hayScaleFactor; // half of bale depth  (1.0 * scale / 2)
-        const wy = Math.max(
-          this.terrainHeight(wx,      wz     ),
-          this.terrainHeight(wx + hw, wz + hd),
-          this.terrainHeight(wx - hw, wz + hd),
-          this.terrainHeight(wx + hw, wz - hd),
-          this.terrainHeight(wx - hw, wz - hd),
-        );
-
         this.pushMatrix();
           this.multMatrix(sca);
-          this.translate(wx, wy, wz);
+          this.translate(wx, pos.wy, wz);
           this.rotate(pos.rotation, 0, 1, 0);
           this.scale(this.hayScaleFactor, this.hayScaleFactor, this.hayScaleFactor);
           this.hay.display();
         this.popMatrix();
       }
-      
+
       this.setActiveShader(this.arrowShader);
-      // second loop to avoid changing shaders for every hay/arrow couple
       for (let i = 0; i < this.hayPositions.length; i++) {
         const pos = this.hayPositions[i];
         const wx = pos.normX * this.groundScale;
         const wz = pos.normZ * this.groundScale;
-
-        // Sample all 4 corners of the bale footprint and use the highest point,
-        // so the bale sits on top of the terrain even on steep slopes.
-        const hw = 0.75 * this.hayScaleFactor; // half of bale width  (1.5 * scale / 2)
-        const hd = 0.5  * this.hayScaleFactor; // half of bale depth  (1.0 * scale / 2)
-        const wy = Math.max(
-          this.terrainHeight(wx,      wz     ),
-          this.terrainHeight(wx + hw, wz + hd),
-          this.terrainHeight(wx - hw, wz + hd),
-          this.terrainHeight(wx + hw, wz - hd),
-          this.terrainHeight(wx - hw, wz - hd),
-        );
-
         this.pushMatrix();
           this.multMatrix(sca);
-          this.translate(wx, wy, wz);
+          this.translate(wx, pos.wy, wz);
           this.rotate(pos.rotation, 0, 1, 0);
           this.scale(this.hayScaleFactor, this.hayScaleFactor, this.hayScaleFactor);
           this.arrow.display();
@@ -1645,6 +1599,7 @@ makeRng(seed) {
           obj: obj,
           x: randomX,
           z: randomZ,
+          wy: this.terrainHeight(randomX * this.groundScale, randomZ * this.groundScale),
           randomOffset: 0,
           scale: 0.6 + Math.random() * 0.8,
           rotation: Math.random() * Math.PI * 2,
@@ -1683,6 +1638,7 @@ makeRng(seed) {
           obj: obj,
           x: randomX,
           z: randomZ,
+          wy: this.terrainHeight(randomX * this.groundScale, randomZ * this.groundScale),
           randomOffset: 0,
           scale: 0.6 + Math.random() * 0.8,
           rotation: Math.random() * Math.PI * 2,
@@ -1711,8 +1667,9 @@ makeRng(seed) {
         this.rockPositions.push({
           normX: normX,
           normZ: normZ,
-          scale: 0.5 + Math.random() * 1.0, // Randomize size a bit
-          rotX: Math.random() * Math.PI * 2, // Rocks look better with random 3D rotations
+          wy:   this.terrainHeight(normX * this.groundScale, normZ * this.groundScale),
+          scale: 0.5 + Math.random() * 1.0,
+          rotX: Math.random() * Math.PI * 2,
           rotY: Math.random() * Math.PI * 2,
           rotZ: Math.random() * Math.PI * 2
         });
@@ -1760,13 +1717,27 @@ makeRng(seed) {
       [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
     }
 
-    // Place one bale at each of the first numHay candidates
+    // Place one bale at each of the first numHay candidates.
+    // Pre-bake the terrain height so display() doesn't repeat the 5-sample
+    // max() computation (for two render passes) every frame.
+    const hw = 0.75 * this.hayScaleFactor;
+    const hd = 0.5  * this.hayScaleFactor;
     const count = Math.min(needed, candidates.length);
     for (let i = 0; i < count; i++) {
       const [u, v] = candidates[i];
+      const wx = (u - 0.5) * this.groundScale;
+      const wz = (v - 0.5) * this.groundScale;
+      const wy = Math.max(
+        this.terrainHeight(wx,      wz     ),
+        this.terrainHeight(wx + hw, wz + hd),
+        this.terrainHeight(wx - hw, wz + hd),
+        this.terrainHeight(wx + hw, wz - hd),
+        this.terrainHeight(wx - hw, wz - hd),
+      );
       this.hayPositions.push({
-        normX:    u - 0.5,                        // UV [0,1] → norm [-0.5, 0.5]
+        normX:    u - 0.5,
         normZ:    v - 0.5,
+        wy,
         rotation: Math.random() * Math.PI * 2,
       });
     }
