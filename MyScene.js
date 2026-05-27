@@ -148,7 +148,7 @@ export class MyScene extends CGFscene {
     this.followCamera = true;
 
     this.displayAll       = true;
-    this.displayAxis      = this.displayAll;
+    this.displayAxis      = false;  // axis hidden by default during gameplay
     this.displaySky       = this.displayAll;
     this.displaySun       = this.displayAll;
     this.displayClouds    = this.displayAll;
@@ -487,6 +487,15 @@ export class MyScene extends CGFscene {
       this.healthDisplay  = this._formatTime(this.health);
       this.elapsedDisplay = this._formatTime(this.gameElapsed);
 
+      // ── Hay respawn: when ≤ 1 bale remains and the wagon is empty, clear
+      //    all positions so generateHay() picks 5 entirely fresh path nodes
+      //    (without clearing first the last surviving bale would be locked
+      //    in place by the isOccupied filter and never rotate out).
+      if (this.hayPositions.length <= 1 && this.wagonHayCount === 0) {
+        this.hayPositions = [];
+        this.generateHay();
+      }
+
       this.checkCollisions();
 
       if (this.followCamera) this.updateCamera();
@@ -692,15 +701,6 @@ export class MyScene extends CGFscene {
     if (uDown && !this._prevKeyU) this.turnWagon180();
     this._prevKeyU = uDown;
 
-    // ── Health test keys (single-press, +10 / -10 seconds) ───────────────
-    const kDown = this.gui.isKeyPressed('KeyK');
-    if (kDown && !this._prevKeyK) this.addHealth(20);
-    this._prevKeyK = kDown;
-
-    const iDown = this.gui.isKeyPressed('KeyI');
-    if (iDown && !this._prevKeyI) this.removeHealth(10);
-    this._prevKeyI = iDown;
-
     const oneDown = this.gui.isKeyPressed('Digit1');
     if (oneDown && !this._prevKey1) this.pickUpHay(0);
     this._prevKey1 = oneDown;
@@ -815,11 +815,13 @@ export class MyScene extends CGFscene {
 
   dropHay() {
     if (this.wagonHayCount <= 0) return;
-    this.addHealth(10*this.wagonHayCount);
+    // Non-linear reward: 1 bale = +18 s, 2 bales = +32 s
+    const gain = this.wagonHayCount === 1 ? 18 : 32;
+    this.addHealth(gain);
     this.wagonHayCount = 0;
     this.wagon.updateHayCount(0);
-    
-    this.generateHay();
+    // Respawn check is handled in the update loop — new bales appear only
+    // when ≤ 1 remain on the map and the wagon is empty.
   }
 
   /** Keep siloHayLevel in [0,1] in lock-step with the health countdown. */
@@ -1174,18 +1176,28 @@ makeRng(seed) {
     };
 }
 
+  _rebuildAll() {
+    // Regenerate every randomly-placed element after the path changes.
+    // Clear hay first so generateHay() doesn't bail out on the "needed <= 0" guard.
+    this.hayPositions = [];
+    this.rebuildGrass();
+    this.generateTrees();
+    this.generateFlowers();
+    this.generateRocks();
+    this.generateHay();
+  }
+
   rebuildPath() {
     const { fixedPoints, exclusionZones } = this._computePathConfig();
     this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed, fixedPoints, exclusionZones);
-    this.rebuildGrass();
+    this._rebuildAll();
   }
 
   newRandomPath() {
     this.pathSeed = Math.floor(Math.random() * 1000);
     const { fixedPoints, exclusionZones } = this._computePathConfig();
     this.edges = this.ground.generateMSTEdges(this.pathNumPoints, this.pathSeed, fixedPoints, exclusionZones);
-    this.rebuildGrass();
-    this.generateTrees();
+    this._rebuildAll();
   }
 
   saveCurrentPath() {

@@ -10,15 +10,24 @@ export class MyInterface extends CGFinterface {
   }
 
   init(application) {
-    // call CGFinterface init
     super.init(application);
 
-    // init GUI. For more information on the methods, check:
-    // https://github.com/dataarts/dat.gui/blob/master/API.md
     this.gui = new dat.GUI();
 
+    // ── HUD folder (open) — game stats visible at a glance ───────────────
+    const hudFolder = this.gui.addFolder('Game');
+    hudFolder.add(this.scene, 'elapsedDisplay').name('⏱ Time Played').listen();
+    hudFolder.add(this.scene, 'healthDisplay').name('❤ Health Left').listen();
+    hudFolder.add(this.scene, 'siloHayLevel', 0, 1, 0.01).name('Silo Level').listen();
+    hudFolder.open();
+
+    // ── Settings folder (closed) — all developer/debug controls ──────────
+    const settings = this.gui.addFolder('Settings');
+    // Settings stays closed by default (no .open() call)
+
+    // Actions object for button-style controls
     const actions = {
-      generatePath:    () => { this.scene.newRandomPath(); seedCtrl.updateDisplay();},
+      generatePath:    () => { this.scene.newRandomPath(); seedCtrl.updateDisplay(); },
       generateTree:    () => this.scene.generateTrees(),
       generateRocks:   () => this.scene.generateRocks(),
       generateGrass:   () => this.scene.rebuildGrass(),
@@ -30,64 +39,59 @@ export class MyInterface extends CGFinterface {
     };
 
     // Global controls
-    const globalFolder = this.gui.addFolder("Global");
-    globalFolder.add(this.scene, "globalScaleFactor", 0.1, 5).name("Scale Factor");
-    globalFolder.add(this.scene, "displayAxis").name("Display Axis");
-    globalFolder.add(actions, "toggleDisplayAll").name("Toggle Display All");
-    globalFolder.add(this.scene, "followCamera").name("Camera Following the Wagon");
+    const globalFolder = settings.addFolder('Global');
+    globalFolder.add(this.scene, 'globalScaleFactor', 0.1, 5).name('Scale Factor');
+    globalFolder.add(this.scene, 'displayAxis').name('Display Axis');
+    globalFolder.add(actions, 'toggleDisplayAll').name('Toggle Display All');
+    globalFolder.add(this.scene, 'followCamera').name('Camera Follows Wagon');
 
     // Sky controls
-    const skyFolder = this.gui.addFolder("Sky");
-    skyFolder.add(this.scene, "displaySky").name("Display Sky");
-    skyFolder.add(this.scene, "skyScaleFactor", 0.1, 200).name("Scale Factor");
-    skyFolder.add(this.scene, "displaySun").name("Display Sun");
-    skyFolder.add(this.scene, "sunScale", 0.1, 20).name("Sun Size");
+    const skyFolder = settings.addFolder('Sky');
+    skyFolder.add(this.scene, 'displaySky').name('Display Sky');
+    skyFolder.add(this.scene, 'skyScaleFactor', 0.1, 200).name('Scale Factor');
+    skyFolder.add(this.scene, 'displaySun').name('Display Sun');
+    skyFolder.add(this.scene, 'sunScale', 0.1, 20).name('Sun Size');
+    skyFolder.add(this.scene, 'displayClouds').name('Display Clouds');
+    skyFolder.add(this.scene, 'cloudSpeed', 0.0, 0.5).name('Cloud Speed');
+    skyFolder.add(this.scene, 'cloudDensity', 0.0, 0.9).name('Cloud Density');
+    skyFolder.add(this.scene, 'cloudSize', 1.0, 50.0).name('Cloud Size');
 
-    // Cloud controls
-    // const cloudFolder = this.gui.addFolder("Clouds");
-    skyFolder.add(this.scene, "displayClouds").name("Display Clouds");
-    skyFolder.add(this.scene, "cloudSpeed", 0.0, 0.5).name("Speed");
-    skyFolder.add(this.scene, "cloudDensity", 0.0, 0.9).name("Density");
-    skyFolder.add(this.scene, "cloudSize", 1.0, 50.0).name("Cloud Size");
+    // Ground controls
+    const groundFolder = settings.addFolder('Ground');
+    groundFolder.add(this.scene, 'displayGround').name('Display Terrain');
+    groundFolder.add(this.scene, 'uHeightScale', 0.01, 0.5).name('Height Scale')
+      .onChange(v => this.scene.terrainShader.setUniformsValues({ uHeightScale: v }));
+
+    // Path generation controls
+    const pathFolder = settings.addFolder('Path Generation');
+    pathFolder.add(this.scene, 'pathNumPoints', 3, 21, 1).name('Nodes')
+              .onChange(() => this.scene.rebuildPath());
+    const seedCtrl = pathFolder.add(this.scene, 'pathSeed', 0, 999, 1).name('Seed')
+              .onChange(() => this.scene.rebuildPath());
+    pathFolder.add(this.scene, 'pathWidth', 0.01, 0.1).name('Width')
+              .onChange(v => this.scene.terrainShader.setUniformsValues({ uPathWidth: v }));
+    pathFolder.add(actions, 'generatePath').name('Generate New Path');
+    pathFolder.add(actions, 'save').name('Save Current Path');
+    pathFolder.add(actions, 'print').name('Print Saved Path');
 
     // Tree controls
-    const treeFolder = this.gui.addFolder('Tree');
+    const treeFolder = settings.addFolder('Trees');
     treeFolder.add(this.scene, 'displayTree').name('Display Trees');
-    treeFolder.add(this.scene, 'axiom').name('Axiom');
-    treeFolder.add(this.scene, 'angle').name('Angle');
-    treeFolder.add(this.scene, 'iterations').name('Iterations');
     treeFolder.add(this.scene, 'treeScaleFactor').name('Scale Factor');
-    treeFolder.add(this.scene, 'treeMinDistanceToPath').name('Min Distance to Path');
     treeFolder.add(this.scene, 'treeDensity', 0, 0.5).name('Density');
+    treeFolder.add(this.scene, 'treeMinDistanceToPath').name('Min Distance to Path');
     treeFolder.add(actions, 'generateTree').name('Generate Layout');
 
     // Flower controls
-    const flowerFolder = this.gui.addFolder('Flower');
+    const flowerFolder = settings.addFolder('Flowers');
     flowerFolder.add(this.scene, 'displayFlower').name('Display Flowers');
     flowerFolder.add(this.scene, 'flowerScaleFactor').name('Scale Factor');
-    flowerFolder.add(this.scene, 'flowerMinDistanceToPath').name('Min Distance to Path');
     flowerFolder.add(this.scene, 'flowerDensity', 0, 0.5).name('Density');
+    flowerFolder.add(this.scene, 'flowerMinDistanceToPath').name('Min Distance to Path');
     flowerFolder.add(actions, 'generateFlowers').name('Generate Layout');
-    // flowerFolder.open();
 
-    // Ground controls
-    const groundFolder = this.gui.addFolder("Ground");
-    groundFolder.add(this.scene, "displayGround").name("Display Terrain");
-    groundFolder.add(this.scene, "groundScale", 0.1, 200).name("Ground Scale");
-
-    // Path generation controls
-    const pathFolder = this.gui.addFolder("Path Generation");
-    pathFolder.add(this.scene, "pathNumPoints", 3, 21, 1).name("Nodes")
-              .onChange(() => this.scene.rebuildPath());
-    const seedCtrl = pathFolder.add(this.scene, "pathSeed", 0, 999, 1).name("Seed")
-              .onChange(() => this.scene.rebuildPath());
-    pathFolder.add(this.scene, "pathWidth", 0.01, 0.1).name("Width")
-              .onChange(v => this.scene.terrainShader.setUniformsValues({ uPathWidth: v }));
-    pathFolder.add(actions, "generatePath").name("Generate New Path");
-    pathFolder.add(actions, "save").name("Save Current Path");
-    pathFolder.add(actions, "print").name("Print Saved Path");
-
-    const grassFolder = this.gui.addFolder('Grass');
+    // Grass controls
+    const grassFolder = settings.addFolder('Grass');
     grassFolder.add(this.scene, 'displayGrass').name('Display');
     grassFolder.add(this.scene, 'numPatches', 0, 80, 1).name('Patch Count')
                .onFinishChange(() => this.scene.rebuildGrass());
@@ -97,76 +101,54 @@ export class MyInterface extends CGFinterface {
     grassFolder.add(this.scene, 'grassScaleFactor').name('Scale Factor');
     grassFolder.add(actions, 'generateGrass').name('Generate Layout');
 
-    const hayFolder = this.gui.addFolder('Hay');
-    hayFolder.add(this.scene, 'displayHay').name('Display');
-    hayFolder.add(this.scene, 'numHay', 1, 20, 1).name('Count');
-    hayFolder.add(this.scene, 'hayMinDistanceToPath', 0.01, 0.2).name('Min Distance to Path');
-    hayFolder.add(this.scene, 'hayScaleFactor', 0.1, 3.0).name('Scale Factor');
-    hayFolder.add(actions, 'generateHay').name('Generate Layout');
-
-    const rockFolder = this.gui.addFolder('Rock');
+    // Rock controls
+    const rockFolder = settings.addFolder('Rocks');
     rockFolder.add(this.scene, 'displayRock').name('Display');
-    rockFolder.add(this.scene, 'numRocks',      1,   50,  1  ).name('Count')
-          .onFinishChange(() => this.scene.rebuildRocks());
-    rockFolder.add(this.scene, 'rockSpawnSeed', 0,  100,  0.1).name('Spawn Seed')
-          .onFinishChange(() => this.scene.rebuildRocks());
+    rockFolder.add(this.scene, 'numRocks', 1, 50, 1).name('Count')
+              .onFinishChange(() => this.scene.generateRocks());
+    rockFolder.add(this.scene, 'rockSpawnSeed', 0, 100, 0.1).name('Spawn Seed')
+              .onFinishChange(() => this.scene.generateRocks());
     rockFolder.add(this.scene, 'rockMinDistanceToPath').name('Min Distance to Path');
     rockFolder.add(this.scene, 'rockScaleFactor').name('Scale Factor');
     rockFolder.add(actions, 'generateRocks').name('Generate Layout');
 
     // Barn controls
-    const barnFolder = this.gui.addFolder('Barn');
+    const barnFolder = settings.addFolder('Barn');
     barnFolder.add(this.scene, 'displayBarn').name('Display Barn');
-    barnFolder.add(this.scene, 'barnX', -12, 12, 0.1).name('Position X');
-    barnFolder.add(this.scene, 'barnZ', -12, 12, 0.1).name('Position Z');
-    barnFolder.add(this.scene, 'barnRotation', -Math.PI, Math.PI, 0.05).name('Rotation');
-    barnFolder.add(this.scene, 'barnScale', 0.2, 5.0, 0.05).name('Scale');
     barnFolder.add(this.scene, 'displayFence').name('Display Fence');
+    barnFolder.add(this.scene, 'barnScale', 0.2, 5.0, 0.05).name('Barn Scale');
     barnFolder.add(this.scene, 'fenceRadius', 0.5, 8.0, 0.1).name('Fence Radius');
     barnFolder.add(this.scene, 'fenceEntranceArc', 0, Math.PI, 0.02).name('Entrance Width');
-    barnFolder.add(this.scene, 'fenceIntersected').name('Wagon Intersect (test)');
 
-    // Hay silo controls
-    const siloFolder = this.gui.addFolder('Hay Silo');
+    // Hay silo controls (Hay Level is driven by health — not a manual slider)
+    const siloFolder = settings.addFolder('Hay Silo');
     siloFolder.add(this.scene, 'displaySilo').name('Display Silo');
     siloFolder.add(this.scene, 'siloOffsetX', -3, 3, 0.05).name('Offset X (local)');
     siloFolder.add(this.scene, 'siloOffsetZ', -3, 3, 0.05).name('Offset Z (local)');
-    siloFolder.add(this.scene, 'siloHayLevel', 0, 1, 0.01).name('Hay Level');
 
-
-    // ── Health / Timer HUD ────────────────────────────────────────────────
-    const healthFolder = this.gui.addFolder('Health');
-    healthFolder.add(this.scene, 'elapsedDisplay').name('⏱ Time Played').listen();
-    healthFolder.add(this.scene, 'healthDisplay').name('❤ Health Left').listen();
-    healthFolder.add(this.scene, 'siloHayLevel', 0, 1, 0.01).name('Silo Level').listen();
-    healthFolder.open();
-
-    const wagonFolder = this.gui.addFolder('Wagon');
+    // Wagon controls
+    const wagonFolder = settings.addFolder('Wagon');
     wagonFolder.add(this.scene, 'displayWagon').name('Display');
     wagonFolder.add(this.scene, 'wagonScaleFactor').name('Scale Factor');
+    wagonFolder.add(this.scene, 'wagonAcceleration', 0.001, 0.05).name('Acceleration');
+    wagonFolder.add(this.scene, 'wagonTurnRate', 0.1, 2.0).name('Turn Rate');
 
     this.initKeys();
 
     return true;
   }
+
   initKeys() {
-    // create reference from the scene to the GUI
-    this.scene.gui=this;
-
-    // disable the processKeyboard function
-    this.processKeyboard=function(){};
-
-    // create a named array to store which keys are being pressed
-    this.activeKeys={};
+    this.scene.gui = this;
+    this.processKeyboard = function () {};
+    this.activeKeys = {};
   }
 
   processKeyDown(event) {
-    // called when a key is pressed down
     this.activeKeys[event.code] = true;
 
     // ── Game state transitions ────────────────────────────────────────────
     if (this.scene.gameState === 'start') {
-      // Any key dismisses the start screen and begins the game
       this.scene.startGame();
       return;
     }
@@ -176,12 +158,10 @@ export class MyInterface extends CGFinterface {
   }
 
   processKeyUp(event) {
-    // called when a key is released, mark it as inactive in the array
-    this.activeKeys[event.code]=false;
+    this.activeKeys[event.code] = false;
   }
 
   isKeyPressed(keyCode) {
-    // returns true if a key is marked as pressed, false otherwise
     return this.activeKeys[keyCode] || false;
   }
 }
