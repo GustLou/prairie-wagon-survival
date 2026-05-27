@@ -46,7 +46,9 @@ float fbm(vec2 st) {
 void main() {
   vTextureCoord = aTextureCoord;
 
-  float h = texture2D(uHeightMap, aTextureCoord).r;
+  // Clamp slightly inside the texture to prevent edge-pixel wrapping
+  vec2 safeUV = clamp(aTextureCoord, 0.005, 0.995);
+  float h = texture2D(uHeightMap, safeUV).r;
 
   vec3 displaced = aVertexPosition + aVertexNormal * (h * uHeightScale);
 

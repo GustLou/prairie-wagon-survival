@@ -144,7 +144,7 @@ export class MyScene extends CGFscene {
       uScale: 12.4,
     });
     
-    this.followCamera = false;
+    this.followCamera = true;
 
     this.displayAll       = true;
     this.displayAxis      = this.displayAll;
@@ -211,11 +211,16 @@ export class MyScene extends CGFscene {
     this.wagonPosition = { x: spawn.x, z: spawn.z };
     this.wagonAngle    = spawn.angle;
     this.wagonSpeed = 0;                 // Current velocity
-    this.cameraSteeringHeight = 3;
+    this.cameraSteeringHeight = 1.5;
+    this.followDistance = 16;
+    this.followHeight = 5;
+    this.cameraLerpSpeed = 1;
     
-    this.wagonAcceleration = 0.01;       // How fast it accelerates per frame
-    this.wagonFriction = 0.92;           // Friction to slow it down when keys are released
-    this.wagonTurnRate = 0.4;            // Base turn rate (will be multiplied by speed)
+    this.wagonAcceleration = 0.01;
+    this.wagonSlowFriction = 0.92;
+    this.wagonFriction = 0.96;
+    this.wagonTurnRate = 0.4;
+    this.wagonOnPath = true;
 
     this.hayPositions = [];
 
@@ -437,7 +442,7 @@ export class MyScene extends CGFscene {
 
     if (this.gameState === 'playing') {
       // Apply friction to gradually slow down the wagon
-      this.wagonSpeed *= this.wagonFriction;
+      this.wagonSpeed *= this.wagonOnPath ? this.wagonFriction : this.wagonSlowFriction;
 
       // Stop micro-sliding when speed is extremely low
       if (Math.abs(this.wagonSpeed) < 0.001) {
@@ -465,6 +470,9 @@ export class MyScene extends CGFscene {
     const wagonCZ = this.wagonPosition.z - Math.cos(this.wagonAngle) * bodyHalfLength;
     const wagonRadius = Math.sqrt(bodyHalfLength * bodyHalfLength + bodyHalfWidth * bodyHalfWidth);
 
+    // todo: check if we can have the obstacle take damage porportional to the time spent there (current)
+    // «Wagon gets damage by hitting obstacles (example: loses a random HP number between 5 and 15)»
+
     if (this.rockPositions) {
       // Rock is a unit sphere (radius=1 in model space); world radius = pos.scale * rockScaleFactor
       for (const pos of this.rockPositions) {
@@ -476,6 +484,7 @@ export class MyScene extends CGFscene {
         const dz = wagonCZ - rz;
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
           console.log("Collision with rock at", rx.toFixed(2), rz.toFixed(2));
+          this.removeHealth(this._dt*30);
         }
       }
     }
@@ -484,14 +493,18 @@ export class MyScene extends CGFscene {
       // Hay is a (1.5 x 1.0 x 1.0) box; bounding circle in XZ = sqrt(0.75^2 + 0.5^2) ≈ 0.90
       const HAY_MODEL_RADIUS = Math.sqrt(0.75 * 0.75 + 0.5 * 0.5);
       const hayRadius = HAY_MODEL_RADIUS * this.hayScaleFactor;
-      for (const pos of this.hayPositions) {
+      for (let i = 0; i < this.hayPositions.length; i++) {
+        const pos = this.hayPositions[i];
         const hx = pos.normX * this.groundScale;
         const hz = pos.normZ * this.groundScale;
         const combinedRadius = wagonRadius + hayRadius;
         const dx = wagonCX - hx;
         const dz = wagonCZ - hz;
+      
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
-          console.log("Collision with hay at", hx.toFixed(2), hz.toFixed(2));
+          console.log(`Collision with hay at index ${i}:`, hx.toFixed(2), hz.toFixed(2));
+          
+          this.pickUpHay(i);
         }
       }
     }
@@ -506,8 +519,14 @@ export class MyScene extends CGFscene {
         const dz = wagonCZ - tz;
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
           console.log("Collision with tree at", tx.toFixed(2), tz.toFixed(2));
+          this.removeHealth(this._dt*30);
         }
       }
+    }
+
+    const currentOnPath = this.isOnPath(wagonCX, wagonCZ);
+    if (currentOnPath ^ this.wagonOnPath) {
+      this.wagonOnPath = currentOnPath;
     }
 
     // Barn drop zone: wagon center inside the fence circle
@@ -517,94 +536,40 @@ export class MyScene extends CGFscene {
     this.fenceIntersected = (fdx * fdx + fdz * fdz) < (this.fenceRadius * this.fenceRadius);
     if (this.fenceIntersected && !wasInFence) {
       console.log("Entered barn area");
+      this.dropHay();
     } else if (!this.fenceIntersected && wasInFence) {
       console.log("Left barn area");
-    }
-  }
-
-  checkCollisions() {
-    // Geometric center is baseLength/2 behind wagonPosition along the heading.
-    const bodyHalfLength = (this.wagon.baseLength / 2) * this.wagonScaleFactor; // 1.25 * 0.35 = 0.4375
-    const bodyHalfWidth  = (this.wagon.baseWidth  / 2) * this.wagonScaleFactor; // 1.0  * 0.35 = 0.35
-    const wagonCX = this.wagonPosition.x - Math.sin(this.wagonAngle) * bodyHalfLength;
-    const wagonCZ = this.wagonPosition.z - Math.cos(this.wagonAngle) * bodyHalfLength;
-    const wagonRadius = Math.sqrt(bodyHalfLength * bodyHalfLength + bodyHalfWidth * bodyHalfWidth);
-
-    if (this.rockPositions) {
-      // Rock is a unit sphere (radius=1 in model space); world radius = pos.scale * rockScaleFactor
-      for (const pos of this.rockPositions) {
-        const rx = pos.normX * this.groundScale;
-        const rz = pos.normZ * this.groundScale;
-        const rockRadius = pos.scale * this.rockScaleFactor;
-        const combinedRadius = wagonRadius + rockRadius;
-        const dx = wagonCX - rx;
-        const dz = wagonCZ - rz;
-        if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
-          console.log("Collision with rock at", rx.toFixed(2), rz.toFixed(2));
-        }
-      }
-    }
-
-    if (this.hayPositions) {
-      // Hay is a (1.5 x 1.0 x 1.0) box; bounding circle in XZ = sqrt(0.75^2 + 0.5^2) ≈ 0.90
-      const HAY_MODEL_RADIUS = Math.sqrt(0.75 * 0.75 + 0.5 * 0.5);
-      const hayRadius = HAY_MODEL_RADIUS * this.hayScaleFactor;
-      for (const pos of this.hayPositions) {
-        const hx = pos.normX * this.groundScale;
-        const hz = pos.normZ * this.groundScale;
-        const combinedRadius = wagonRadius + hayRadius;
-        const dx = wagonCX - hx;
-        const dz = wagonCZ - hz;
-        if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
-          console.log("Collision with hay at", hx.toFixed(2), hz.toFixed(2));
-        }
-      }
-    }
-
-    if (this.treePositions) {
-      for (const pos of this.treePositions) {
-        const tx = pos.x * this.groundScale + pos.randomOffset;
-        const tz = pos.z * this.groundScale + pos.randomOffset;
-        const treeRadius = pos.obj.trunkWidth * pos.scale * this.treeScaleFactor;
-        const combinedRadius = wagonRadius + treeRadius;
-        const dx = wagonCX - tx;
-        const dz = wagonCZ - tz;
-        if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
-          console.log("Collision with tree at", tx.toFixed(2), tz.toFixed(2));
-        }
-      }
-    }
-
-    // Barn drop zone: wagon center inside the fence circle
-    const fdx = wagonCX - this.barnX;
-    const fdz = wagonCZ - this.barnZ;
-    const wasInFence = this.fenceIntersected;
-    this.fenceIntersected = (fdx * fdx + fdz * fdz) < (this.fenceRadius * this.fenceRadius);
-    if (this.fenceIntersected && !wasInFence) {
-      console.log("Entered barn area");
-    } else if (!this.fenceIntersected && wasInFence) {
-      console.log("Left barn area");
+      this.generateHay();
     }
   }
 
   updateCamera() {
-    const followDistance = 16.0;
-    const followHeight = 5;
-
     const wagonY = this.terrainHeight(this.wagonPosition.x, this.wagonPosition.z);
+    const target = vec3.fromValues(
+      this.wagonPosition.x, 
+      wagonY + this.cameraSteeringHeight, 
+      this.wagonPosition.z
+    );
 
-    const target = vec3.fromValues(this.wagonPosition.x, wagonY+this.cameraSteeringHeight, this.wagonPosition.z);
+    const offsetX = Math.sin(this.wagonAngle) * this.followDistance;
+    const offsetZ = Math.cos(this.wagonAngle) * this.followDistance;
 
-    const offsetX = Math.sin(this.wagonAngle) * followDistance;
-    const offsetZ = Math.cos(this.wagonAngle) * followDistance;
+    const desiredCamX = this.wagonPosition.x - offsetX;
+    const desiredCamZ = this.wagonPosition.z - offsetZ;
+    const desiredCamY = wagonY + this.followHeight; 
 
-    const camX = this.wagonPosition.x - offsetX;
-    const camZ = this.wagonPosition.z - offsetZ;
-    const camY = wagonY + followHeight; 
+    const terrainBehindY = this.terrainHeight(desiredCamX, desiredCamZ);
+    const safeCamY = Math.max(desiredCamY, terrainBehindY+0.1); 
 
-    const position = vec3.fromValues(camX, camY, camZ);
+    const desiredPosition = vec3.fromValues(desiredCamX, safeCamY, desiredCamZ);
 
-    this.camera.setPosition(position);
+    const currentPosition = this.camera.position;
+    const newPosition = vec3.create();
+
+    // vec3.lerp(out, a, b, t) glides from 'a' to 'b' by factor 't'
+    vec3.lerp(newPosition, currentPosition, desiredPosition, this.cameraLerpSpeed*this._dt);
+
+    this.camera.setPosition(newPosition);
     this.camera.setTarget(target);
   }
 
@@ -629,11 +594,20 @@ export class MyScene extends CGFscene {
     }
 
     // camera
-    if (this.gui.isKeyPressed("ArrowUp")) {
-      this.cameraSteeringHeight += 0.5;
+    if (this.gui.isKeyPressed("ArrowUp") && this.followHeight < 10) {
+      this.followHeight += 0.5;
     }
-    if (this.gui.isKeyPressed("ArrowDown")) {
-      this.cameraSteeringHeight -= 0.5;
+    if (this.gui.isKeyPressed("ArrowDown") && this.followHeight > 0) {
+      this.followHeight -= 0.5;
+    }
+
+    // Zoom in/out (Distance adjustment)
+    // We use Math.max and Math.min to clamp the zoom so they can't zoom too far or inside the wagon
+    if (this.gui.isKeyPressed("ArrowRight")) {
+      this.followDistance = Math.max(5.0, this.followDistance - 0.5); 
+    }
+    if (this.gui.isKeyPressed("ArrowLeft")) {
+      this.followDistance = Math.min(30.0, this.followDistance + 0.5);
     }
 
     // DEBUG
@@ -678,7 +652,6 @@ export class MyScene extends CGFscene {
     if (zeroDown && !this._prevKey0) this.dropHay();
     this._prevKey0 = zeroDown;
   }
-
 
   // ── Barn / path / spawn helpers ─────────────────────────────────────────
 
@@ -772,8 +745,6 @@ export class MyScene extends CGFscene {
     this.addHealth(10*this.wagonHayCount);
     this.wagonHayCount = 0;
     this.wagon.updateHayCount(0);
-
-    this.generateHay();
   }
 
   /** Keep siloHayLevel in [0,1] in lock-step with the health countdown. */
