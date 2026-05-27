@@ -66,7 +66,7 @@ export class MyScene extends CGFscene {
     this.barnRotation    = Math.PI / 4;  // faces toward centre (0, 0)
     this.barnScale       = 2.25;
     this.fenceRadius     = 4.0;
-    this.fenceEntranceArc = Math.PI / 5;
+    this.fenceEntranceArc = Math.PI / 3;
 
     this.pathNumPoints = 21;
     this.pathSeed = 0;
