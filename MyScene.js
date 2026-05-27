@@ -55,8 +55,8 @@ export class MyScene extends CGFscene {
     // terrainHeight() works correctly for every generator call below.
     this._initTerrainHeightmap();
 
-    this.numPatches = 25; // number of patches center
-    this.bladesPerPatch = 15; // density of each grass patch
+    this.numPatches = 80; // number of patches center
+    this.bladesPerPatch = 40; // density of each grass patch
     this.grassScaleFactor = 1.0;
 
     // ── Barn / fence constants (defined early — needed for path generation) ──
@@ -223,6 +223,7 @@ export class MyScene extends CGFscene {
     this.wagonOnPath = true;
 
     this.hayPositions = [];
+    this.hayCollisionIndex = -1;
 
     this.generateTrees();
     this.generateFlowers();
@@ -493,6 +494,7 @@ export class MyScene extends CGFscene {
       // Hay is a (1.5 x 1.0 x 1.0) box; bounding circle in XZ = sqrt(0.75^2 + 0.5^2) ≈ 0.90
       const HAY_MODEL_RADIUS = Math.sqrt(0.75 * 0.75 + 0.5 * 0.5);
       const hayRadius = HAY_MODEL_RADIUS * this.hayScaleFactor;
+      this.hayCollisionIndex = -1;
       for (let i = 0; i < this.hayPositions.length; i++) {
         const pos = this.hayPositions[i];
         const hx = pos.normX * this.groundScale;
@@ -504,7 +506,8 @@ export class MyScene extends CGFscene {
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
           console.log(`Collision with hay at index ${i}:`, hx.toFixed(2), hz.toFixed(2));
           
-          this.pickUpHay(i);
+          this.hayCollisionIndex = i;
+          break;
         }
       }
     }
@@ -532,15 +535,15 @@ export class MyScene extends CGFscene {
     // Barn drop zone: wagon center inside the fence circle
     const fdx = wagonCX - this.barnX;
     const fdz = wagonCZ - this.barnZ;
-    const wasInFence = this.fenceIntersected;
+    // const wasInFence = this.fenceIntersected;
     this.fenceIntersected = (fdx * fdx + fdz * fdz) < (this.fenceRadius * this.fenceRadius);
-    if (this.fenceIntersected && !wasInFence) {
-      console.log("Entered barn area");
-      this.dropHay();
-    } else if (!this.fenceIntersected && wasInFence) {
-      console.log("Left barn area");
-      this.generateHay();
-    }
+    // if (this.fenceIntersected && !wasInFence) {
+    //   console.log("Entered barn area");
+    //   this.dropHay();
+    // } else if (!this.fenceIntersected && wasInFence) {
+    //   console.log("Left barn area");
+    //   this.generateHay();
+    // }
   }
 
   updateCamera() {
@@ -581,6 +584,9 @@ export class MyScene extends CGFscene {
     // Decelerate / Reverse
     if (this.gui.isKeyPressed("KeyS")) {
       this.wagonSpeed -= this.wagonAcceleration;
+      if (this.wagonSpeed < 0) {
+        this.wagonSpeed = 0;
+      }
     }
 
     // Steer (Curve trajectory)
@@ -591,6 +597,18 @@ export class MyScene extends CGFscene {
     }
     if (this.gui.isKeyPressed("KeyD")) {
       this.wagonAngle -= this.wagonTurnRate * this.wagonSpeed;
+    }
+
+    if (this.gui.isKeyPressed("KeyL") && this.fenceIntersected) {
+      this.dropHay();
+    }
+
+    if (this.gui.isKeyPressed("KeyP") && this.hayCollisionIndex != -1) {
+      this.pickUpHay(this.hayCollisionIndex);
+    }
+
+    if (this.gui.isKeyPressed("KeyR")) {
+      this.resetGame();
     }
 
     // camera
@@ -609,15 +627,6 @@ export class MyScene extends CGFscene {
     if (this.gui.isKeyPressed("ArrowLeft")) {
       this.followDistance = Math.min(30.0, this.followDistance + 0.5);
     }
-
-    // DEBUG
-    const eDown = this.gui.isKeyPressed('KeyE');
-    if (eDown && !this._prevKeyE) this.wagon.updateHayCount(this.wagon.hayCount + 1);
-    this._prevKeyE = eDown;
-
-    const qDown = this.gui.isKeyPressed('KeyQ');
-    if (qDown && !this._prevKeyQ) this.wagon.updateHayCount(this.wagon.hayCount - 1);
-    this._prevKeyQ = qDown;
 
     // ── Health test keys (single-press, +10 / -10 seconds) ───────────────
     const uDown = this.gui.isKeyPressed('KeyU');
@@ -745,6 +754,8 @@ export class MyScene extends CGFscene {
     this.addHealth(10*this.wagonHayCount);
     this.wagonHayCount = 0;
     this.wagon.updateHayCount(0);
+    
+    this.generateHay();
   }
 
   /** Keep siloHayLevel in [0,1] in lock-step with the health countdown. */
