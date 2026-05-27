@@ -15,6 +15,7 @@ import { MyLSTree } from "./tree/MyLSTree.js";
 import { MyLSFlower } from "./tree/MyLSFlower.js";
 import { MyBarn } from "./MyBarn.js";
 import { MyCircularFence } from "./MyCircularFence.js";
+import { MySquareFence } from "./MySquareFence.js";
 import { MyHaySilo } from "./MyHaySilo.js";
 import { MyHay } from "./hay/MyHay.js";
 import { MyWagon } from "./wagon/MyWagon.js";
@@ -241,6 +242,7 @@ export class MyScene extends CGFscene {
     // (barnX/Z/Rotation/Scale/fenceRadius defined early above for path generation)
     this.barn = new MyBarn(this);
     this.fence = new MyCircularFence(this, this.barnX, this.barnZ, this.fenceRadius, 48);
+    this.worldBorder = new MySquareFence(this, 0,0, this.groundScale, 20);
     this.fenceIntersected = false; // GUI toggle for now; wagon collision will drive this later
 
     this.displayBarn  = true;
@@ -577,6 +579,11 @@ export class MyScene extends CGFscene {
     const fenceAngle = Math.atan2(fdz, fdx);
 
     if (this.fenceIntersected && !this.fence._isInEntrance(fenceAngle)) {
+      this.turnWagon180();
+    }
+
+    // world border collision
+    if (!this.worldBorder.containsPoint(wagonCX, wagonCZ)) {
       this.turnWagon180();
     }
   }
@@ -1462,6 +1469,13 @@ makeRng(seed) {
       this.pushMatrix();
         this.multMatrix(sca);
         this.fence.display();
+      this.popMatrix();
+    }
+
+    if (this.worldBorder) {
+      this.pushMatrix();
+        this.multMatrix(sca);
+        this.worldBorder.display();
       this.popMatrix();
     }
 
