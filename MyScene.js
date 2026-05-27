@@ -435,6 +435,31 @@ export class MyScene extends CGFscene {
         }
       }
     }
+
+    if (this.treePositions) {
+      for (const pos of this.treePositions) {
+        const tx = pos.x * this.groundScale + pos.randomOffset;
+        const tz = pos.z * this.groundScale + pos.randomOffset;
+        const treeRadius = pos.obj.trunkWidth * pos.scale * this.treeScaleFactor;
+        const combinedRadius = wagonRadius + treeRadius;
+        const dx = wagonCX - tx;
+        const dz = wagonCZ - tz;
+        if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
+          console.log("Collision with tree at", tx.toFixed(2), tz.toFixed(2));
+        }
+      }
+    }
+
+    // Barn drop zone: wagon center inside the fence circle
+    const fdx = wagonCX - this.barnX;
+    const fdz = wagonCZ - this.barnZ;
+    const wasInFence = this.fenceIntersected;
+    this.fenceIntersected = (fdx * fdx + fdz * fdz) < (this.fenceRadius * this.fenceRadius);
+    if (this.fenceIntersected && !wasInFence) {
+      console.log("Entered barn area");
+    } else if (!this.fenceIntersected && wasInFence) {
+      console.log("Left barn area");
+    }
   }
 
   updateCamera() {
