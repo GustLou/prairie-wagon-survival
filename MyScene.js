@@ -281,6 +281,7 @@ export class MyScene extends CGFscene {
     this._startScreenEl    = document.getElementById('start-screen');
     this._gameoverScreenEl = document.getElementById('gameover-screen');
     this._gameoverTimeEl   = document.getElementById('gameover-time');
+    this._gameoverCountEl  = document.getElementById('gameover-count');
 
     this.wagonHayCount = 0;
     this.balesDropped  = 0;
@@ -883,6 +884,7 @@ export class MyScene extends CGFscene {
     if (this.gameState !== 'playing') return;
     this.gameState = 'gameover';
     this._gameoverTimeEl.textContent = this._formatTime(this.gameElapsed);
+    this._gameoverCountEl.textContent = this.balesDropped;
     this._gameoverScreenEl.classList.remove('hidden');
   }
 
