@@ -20,6 +20,7 @@ import { MyHaySilo } from "./MyHaySilo.js";
 import { MyHay } from "./hay/MyHay.js";
 import { MyWagon } from "./wagon/MyWagon.js";
 import { MyArrow } from "./hay/MyArrow.js";
+import { MySkirt } from "./MySkirt.js";
 
 export class MyScene extends CGFscene {
   constructor() {
@@ -63,6 +64,7 @@ export class MyScene extends CGFscene {
     // Ground controls
     this.ground = new MyPlane(this, 50);
     this.groundScale = 45;
+    this.skirt = new MySkirt(this, this.groundScale/2, this.skyScaleFactor);
     this.pathWidth = 0.02;
     this.uHeightScale = 0.13;
 
@@ -134,6 +136,12 @@ export class MyScene extends CGFscene {
       "shaders/terrain.vert",
       "shaders/terrain.frag",
     );
+
+    this.skirtShader = new CGFshader(
+      this.gl,
+      "shaders/skirt.vert",
+      "shaders/skirt.frag",
+    )
     // Cache path-edge uniform locations once so display() doesn't call
     // getUniformLocation (a relatively expensive driver round-trip) every frame.
     this._uPathEdgesLoc = this.gl.getUniformLocation(this.terrainShader.program, 'uPathEdges');
@@ -1333,6 +1341,21 @@ makeRng(seed) {
     if (this.displayGround) {
       this.pushMatrix();
         this.multMatrix(sca);
+        this.translate(0, 0.5, 0);
+        this.groundColorTexture.bind(0);
+        this.groundDirtTexture.bind(1);
+        this.setActiveShader(this.skirtShader);
+        this.skirtShader.setUniformsValues({
+          uColorMap: 0,
+          uDirtMap: 1,
+          uAmbient: 0.6,
+          uLightDir: [0.0, 0.8, 0.5]
+        });
+        this.skirt.display();
+        this.setActiveShader(this.defaultShader);
+      this.popMatrix();
+      this.pushMatrix();
+        this.multMatrix(sca);
 
         this.rotate(-Math.PI / 2, 1, 0, 0);
         this.scale(this.groundScale, this.groundScale, this.groundScale);
@@ -1675,7 +1698,7 @@ makeRng(seed) {
 
       const pitch = Math.atan2(hFront - hBack, wagonLength);
       const roll = Math.atan2(hRight - hLeft, wagonHalfWidth * 2);
-      const horsePitch = -Math.atan2(hHorse - hFront, 3);
+      const horsePitch = -Math.atan2(hHorse - hFront, 18);
       
       this.pushMatrix();
         this.multMatrix(sca);
