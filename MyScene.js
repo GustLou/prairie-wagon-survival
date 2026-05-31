@@ -64,7 +64,7 @@ export class MyScene extends CGFscene {
     // Ground controls
     this.ground = new MyPlane(this, 50);
     this.groundScale = 45;
-    this.skirt = new MySkirt(this, this.groundScale/2, this.skyScaleFactor);
+    this.skirt = new MySkirt(this, 0, this.skyScaleFactor);
     this.pathWidth = 0.02;
     this.uHeightScale = 0.13;
 
@@ -1341,7 +1341,7 @@ makeRng(seed) {
     if (this.displayGround) {
       this.pushMatrix();
         this.multMatrix(sca);
-        this.translate(0, 0.5, 0);
+        this.translate(0, -0.01, 0);
         this.groundColorTexture.bind(0);
         this.groundDirtTexture.bind(1);
         this.setActiveShader(this.skirtShader);
