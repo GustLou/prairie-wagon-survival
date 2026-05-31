@@ -733,6 +733,7 @@ export class MyScene extends CGFscene {
       this.followDistance = Math.min(30.0, this.followDistance + 0.5);
     }
 
+    // DEBUG KEYS
     const uDown = this.gui.isKeyPressed('KeyU'); // uturn
     if (uDown && !this._prevKeyU) this.turnWagon180();
     this._prevKeyU = uDown;

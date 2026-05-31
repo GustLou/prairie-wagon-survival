@@ -4,7 +4,7 @@ import { MyQuad } from "../../tp4/MyQuad.js";
 import { MyHalfCylinder } from '../primitives/MyHalfCylinder.js';
 import { MyTongue } from './MyTongue.js';
 import { MyWheel } from './MyWheel.js';
-import { CGFobjModel } from "../extra-libs/CGFobjModel.js";
+import { CGFobjModel } from "../lib/CGFobjModel.js";
 
 export class MyWagon extends CGFobject {
   constructor(scene, woodTexture, clothTexture, numPlanks = 3, plankHeight = 0.5, taper = -0.1, baseWidth = 2, baseLength = 2.5, plankSpace = 0.01, wheelWidth = 0.1, wheelSpeed = Math.PI/10, tongueLength = 3) {

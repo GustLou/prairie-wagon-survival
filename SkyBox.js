@@ -53,16 +53,27 @@ export class SkyBox extends CGFobject {
                 let v4 = v3 + 1;
 
                 if (this.inverted) {
-                    this.indices.push(v1, v2, v3);
-                    this.indices.push(v2, v4, v3);
-                } else {
                     this.indices.push(v1, v3, v2);
                     this.indices.push(v2, v3, v4);
+                } else {
+                    this.indices.push(v1, v2, v3);
+                    this.indices.push(v2, v4, v3);
                 }
             }
         }
 
         this.primitiveType = this.scene.gl.TRIANGLES;
         this.initGLBuffers();
+    }
+    display() {
+        // 1. Enable culling just for the SkyBox
+        this.scene.gl.enable(this.scene.gl.CULL_FACE);
+        this.scene.gl.cullFace(this.scene.gl.BACK);
+
+        // 2. Draw the SkyBox geometry
+        super.display();
+
+        // 3. Disable culling immediately after so it doesn't break other objects
+        this.scene.gl.disable(this.scene.gl.CULL_FACE);
     }
 }

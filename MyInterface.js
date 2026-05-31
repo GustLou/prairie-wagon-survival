@@ -133,8 +133,8 @@ export class MyInterface extends CGFinterface {
     const wagonFolder = settings.addFolder('Wagon');
     wagonFolder.add(this.scene, 'displayWagon').name('Display');
     wagonFolder.add(this.scene, 'wagonScaleFactor').name('Scale Factor');
-    wagonFolder.add(this.scene, 'wagonAcceleration', 0.001, 0.05).name('Acceleration');
-    wagonFolder.add(this.scene, 'wagonTurnRate', 0.1, 2.0).name('Turn Rate');
+    wagonFolder.add(this.scene, 'wagonAcceleration', 0.001, 5).name('Acceleration');
+    wagonFolder.add(this.scene, 'wagonTurnRate', 0.01, 0.2).name('Turn Rate');
 
     this.initKeys();
 
