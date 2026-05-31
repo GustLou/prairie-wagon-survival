@@ -1,4 +1,4 @@
-import { CGFobject } from '../../lib/CGF.js';
+import { CGFobject } from '../lib/CGF.js';
 
 // ── 1. Sub-object for the Petals ──────────────────────────────────────────
 class FlowerPetals extends CGFobject {

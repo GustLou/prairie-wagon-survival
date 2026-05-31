@@ -1,4 +1,4 @@
-import { CGFobject, CGFappearance, CGFshader, CGFtexture } from '../lib/CGF.js';
+import { CGFobject, CGFappearance, CGFshader, CGFtexture } from './lib/CGF.js';
 
 export class MyRock extends CGFobject {
     constructor(scene, seed = 0.0, stacks = 16, slices = 12, roughness = 0.18,

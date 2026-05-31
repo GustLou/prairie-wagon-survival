@@ -1,4 +1,4 @@
-import { CGFobject } from '../lib/CGF.js';
+import { CGFobject } from './lib/CGF.js';
 
 export class SkyBox extends CGFobject {
     constructor(scene, isHalf = false, inverted = true, slices = 18, stacks = 10) { // if the slices and/or stacks are too low, they may start clipping the clouds
@@ -64,16 +64,5 @@ export class SkyBox extends CGFobject {
 
         this.primitiveType = this.scene.gl.TRIANGLES;
         this.initGLBuffers();
-    }
-    display() {
-        // 1. Enable culling just for the SkyBox
-        this.scene.gl.enable(this.scene.gl.CULL_FACE);
-        this.scene.gl.cullFace(this.scene.gl.BACK);
-
-        // 2. Draw the SkyBox geometry
-        super.display();
-
-        // 3. Disable culling immediately after so it doesn't break other objects
-        this.scene.gl.disable(this.scene.gl.CULL_FACE);
     }
 }

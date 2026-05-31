@@ -1,6 +1,6 @@
-import { CGFobject, CGFappearance, CGFtexture } from "../../lib/CGF.js";
+import { CGFobject, CGFappearance, CGFtexture } from "../lib/CGF.js";
 import { WagonWall } from "./WagonWall.js";
-import { MyQuad } from "../../tp4/MyQuad.js";
+import { MyQuad } from "../primitives/MyQuad.js";
 import { MyHalfCylinder } from '../primitives/MyHalfCylinder.js';
 import { MyTongue } from './MyTongue.js';
 import { MyWheel } from './MyWheel.js';

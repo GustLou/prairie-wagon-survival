@@ -1,5 +1,5 @@
-import { CGFobject, CGFappearance } from "../../lib/CGF.js";
-import { MyQuad } from "../../tp4/MyQuad.js";
+import { CGFobject, CGFappearance } from "../lib/CGF.js";
+import { MyQuad } from "../primitives/MyQuad.js";
 /**
  * MyDiamond
  * @constructor

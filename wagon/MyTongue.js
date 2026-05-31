@@ -1,4 +1,4 @@
-import { CGFobject } from '../../lib/CGF.js';
+import { CGFobject } from '../lib/CGF.js';
 
 export class MyTongue extends CGFobject {
     constructor(scene, w = 0.1, h = 0.1, l = 4.0) {

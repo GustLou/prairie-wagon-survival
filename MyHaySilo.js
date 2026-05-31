@@ -1,4 +1,4 @@
-import { CGFobject, CGFappearance, CGFtexture } from '../lib/CGF.js';
+import { CGFobject, CGFappearance, CGFtexture } from './lib/CGF.js';
 
 /**
  * Curved cylindrical shell drawn between two angles around the Y axis.

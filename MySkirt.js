@@ -1,4 +1,4 @@
-import { CGFobject } from "../lib/CGF.js";
+import { CGFobject } from "./lib/CGF.js";
 
 /**
  * MySkirt — flat annular apron drawn around the playable terrain tile.

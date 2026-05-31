@@ -1,4 +1,4 @@
-import { CGFobject, CGFappearance, CGFtexture } from '../lib/CGF.js';
+import { CGFobject, CGFappearance, CGFtexture } from './lib/CGF.js';
 
 /**
  * Helper quad with custom tex coords (so we can re-orient a textured face).

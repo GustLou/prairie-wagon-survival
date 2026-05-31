@@ -1,4 +1,4 @@
-import { CGFobject, CGFappearance } from '../lib/CGF.js';
+import { CGFobject, CGFappearance } from './lib/CGF.js';
 
 /**
  * A simple vertical, double-sided 2D plank used as a fence post / rail.

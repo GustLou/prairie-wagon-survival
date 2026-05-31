@@ -1,4 +1,4 @@
-import { CGFobject } from '../../lib/CGF.js';
+import { CGFobject } from '../lib/CGF.js';
 import { MyTrapezoid } from './../MyTrapezoid.js'; // Adjust path as necessary
 
 export class WagonWall extends CGFobject {

@@ -1,4 +1,4 @@
-import { CGFobject } from "../../lib/CGF.js";
+import { CGFobject } from "../lib/CGF.js";
 import { MyPyramid } from "./MyPyramid.js";
 
 export class MyArrow extends CGFobject {

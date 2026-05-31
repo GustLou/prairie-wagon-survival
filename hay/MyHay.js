@@ -1,4 +1,4 @@
-import { CGFobject, CGFshader, CGFtexture } from "../../lib/CGF.js";
+import { CGFobject, CGFshader, CGFtexture } from "../lib/CGF.js";
 import { MyUnitCubeQuad } from "./MyUnitQuad.js";
 
 export class MyHay extends CGFobject {
