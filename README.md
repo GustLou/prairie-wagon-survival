@@ -113,6 +113,16 @@ Collision detection runs continuously against rocks, trees, the barn, and the wo
 
 Game states: start screen → playing → game-over overlay. The DAT.gui HUD shows Score (MM:SS), Health Left, Instantaneous Damage, Instantaneous Health Points Restored, and amount of bales delivered to the barn.
 
+### Extra features
+
+The sun and the moon spin around themselves and cycle around the map, changing the lighting's location and intensity and creating a day/night cycle.
+
+The wagon and the horses pivot vertically according to the map's height with three joints: the back of the wagon, the front of the wagon and the front hoofs of the horses.
+
+To avoid the wagon getting stuck against objects with collision, on collision the wagon initiates a few seconds animation where it turns around and speeds up a bit.
+
+There is a hay silo next to the barn that visually represents the proportion of health left.
+
 ---
 
 ## Screenshots
@@ -125,14 +135,22 @@ Game states: start screen → playing → game-over overlay. The DAT.gui HUD sho
 | `interaction` | ![](screenshots/CG-t03-g01-interaction1.png) | ![](screenshots/CG-t03-g01-interaction2.gif) |
 | `gameplay` | ![](screenshots/CG-t03-g01-gameplay1.png) | ![](screenshots/CG-t03-g01-gameplay2.png) |
 
-Final:
+### Final:
 
-![](screenshots/project-t03g01-1.png)
-![](screenshots/project-t03g01-2.png)
-![](screenshots/project-t03g01-3.png)
-![](screenshots/project-t03g01-4.gif)
-![](screenshots/project-t03g01-5.png)
+![Overall scene overview (wide angle)](screenshots/project-t03g01-1.png)
+Overall scene overview (wide angle)
 
+![Flower rocks and floor detail](screenshots/project-t03g01-2.png)
+Flower rocks and floor detail
+
+![Wagon close-up (showing model detail, textures)](screenshots/project-t03g01-3.png)
+Wagon close-up (showing model detail, textures)
+
+![A Shader animation (animated GIF)](screenshots/project-t03g01-4.gif)
+Shader animations (clouds, sky, arrow, grass and wagon)
+
+![Barn](screenshots/project-t03g01-5.png)
+Barn
 
 ---
 
@@ -162,7 +180,7 @@ Final:
 
 ## AI Use Declaration
 
-We used Claude (Anthropic) as a debugging aid during development. The main areas were: texture unit binding order in WebGL, sampler uniform timing relative to `setActiveShader`, and getting the noise parameters right for terrain height and cloud density. We also used it for code review on `MyScene.js` and to help draft this README.
+We used AI tools as a debugging aid during development. The main areas were: texture unit binding order in WebGL, sampler uniform timing relative to `setActiveShader`, and getting the noise parameters right for terrain height and cloud density. We also used it for code review on `MyScene.js` and to help draft this README.
 
 We also used the above tool as a validation tool of our work at some intermediate deliveries and at the final delivery.
 
