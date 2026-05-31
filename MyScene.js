@@ -1069,7 +1069,6 @@ export class MyScene extends CGFscene {
       this,
       "textures/terrainTexture.jpg",
     );
-    this.groundHeightTexture = new CGFtexture(this, "textures/terrainMap.jpg");
 
     this.groundPathTexture = new CGFtexture(this, "textures/dirt4.jpg");
     this.groundMaterial.setTexture(this.groundColorTexture);
