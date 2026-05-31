@@ -16,11 +16,11 @@ export class MyInterface extends CGFinterface {
 
     // ── HUD folder (open) — game stats visible at a glance ───────────────
     const hudFolder = this.gui.addFolder('Game');
-    hudFolder.add(this.scene, 'elapsedDisplay').name('⏱ Score').listen();
-    hudFolder.add(this.scene, 'health', 0, 150, 1).name('❤ Health Left').listen();
-    hudFolder.add(this.scene, 'instantDamage', 0, 50, 0.5).name('💥 Instant Dmg').listen();
-    hudFolder.add(this.scene, 'instantGain', 0, 50, 0.5).name('✨ HP Restored').listen();
-    hudFolder.add(this.scene, 'balesDropped', 0, 99999, 1).name('🌾 Bales in Barn').listen(); // must be a numeric bar, even though it doesn't make any sense, so we used a very big number that is impossible to beat
+    hudFolder.add(this.scene, 'elapsedDisplay').name('Score').listen();
+    hudFolder.add(this.scene, 'health', 0, 150, 1).name('Health Left').listen();
+    hudFolder.add(this.scene, 'instantDamage', 0, 50, 0.5).name('Instant Dmg').listen();
+    hudFolder.add(this.scene, 'instantGain', 0, 50, 0.5).name('HP Restored').listen();
+    hudFolder.add(this.scene, 'balesDropped', 0, 99999, 1).name('Bales in Barn').listen(); // must be a numeric bar, even though it doesn't make any sense, so we used a very big number that is impossible to beat
     hudFolder.open();
 
     // ── Settings folder (closed) — all developer/debug controls ──────────
