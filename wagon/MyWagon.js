@@ -124,6 +124,8 @@ export class MyWagon extends CGFobject {
 
     // wheels
     this.scene.rotate(Math.PI / 2, 0, 0, 1);
+      // front wheels
+      this.scene.rotate(horseAngleH/3, 1, 0, 0);
       this.scene.rotate(-this.wheelAng, 0, 1, 0);
       this.scene.translate(0, -this.wheelWidth*1.5 -this.wheelBaseWidth/2, 0); // the wheels were offset by half their width ???
         this.scene.rotate(-Math.PI/2, 1, 0, 0);
@@ -139,7 +141,9 @@ export class MyWagon extends CGFobject {
         this.scene.rotate(-this.initAng1, 0, 1, 0);
       this.scene.translate(0,-this.wheelWidth-this.wheelBaseWidth/2,0);
       this.scene.rotate(this.wheelAng, 0, 1, 0);
+      this.scene.rotate(-horseAngleH/3, 1, 0, 0);
     this.scene.translate(0, 0, -this.baseLength);
+      // back wheels
       this.scene.rotate(-this.wheelAng, 0, 1, 0);
       this.scene.translate(0, -this.wheelWidth -this.wheelBaseWidth/2, 0);
         this.scene.rotate(-Math.PI/2, 1, 0, 0);
@@ -158,6 +162,7 @@ export class MyWagon extends CGFobject {
     this.scene.translate(0, this.wheelWidth/2, this.baseLength);
     this.scene.rotate(-Math.PI / 2, 0, 0, 1);
 
+    this.scene.rotate(horseAngleH, 0, 1, 0);
 
     // tongue
     this.scene.rotate(horseAngleV, 1, 0, 0);
@@ -168,18 +173,17 @@ export class MyWagon extends CGFobject {
     this.scene.scale(0.4, 0.4, 0.4)
     this.scene.translate(-this.tongueLength - 5,0,0);
 
-    this.scene.rotate(horseAngleH, 0, 1, 0);
     this.scene.translate(0, 0, this.baseWidth);
     this.horse.display();
     this.scene.translate(0, 0, -this.baseWidth*2);
     this.horse.display();
     this.scene.translate(0, 0, this.baseWidth);
-    this.scene.rotate(-horseAngleH, 0, 1, 0);
     
     this.scene.translate(this.tongueLength + 5,0,0);
     this.scene.scale(2.5, 2.5, 2.5);
     this.scene.rotate(-Math.PI / 2, 0, 1, 0);
     this.scene.rotate(-horseAngleV, 1, 0, 0);
+    this.scene.rotate(-horseAngleH, 0, 1, 0);
 
     // cloth
     if (this.clothTexture) this.clothMaterial.apply();
