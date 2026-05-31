@@ -1351,7 +1351,6 @@ makeRng(seed) {
         this.gl.uniform4fv(this._uPathEdgesLoc, this.ground.pathEdges);
         this.gl.uniform1i(this._uNumEdgesLoc,   this.ground.numEdges);
         this.ground.display();
-        this.setActiveShader(this.defaultShader);
       this.popMatrix();
     }
 
@@ -1365,7 +1364,6 @@ makeRng(seed) {
         this.setActiveShader(this.skyShader);
 
         this.sphere.display();
-        this.setActiveShader(this.defaultShader);
       }
 
       if (this.displayClouds) {
@@ -1384,7 +1382,6 @@ makeRng(seed) {
         });
         this.cloudSphere.display();
 
-        this.setActiveShader(this.defaultShader);
         this.gl.depthMask(true);
         this.gl.disable(this.gl.BLEND);
       }
@@ -1402,7 +1399,6 @@ makeRng(seed) {
         this.setActiveShader(this.sunShader); 
         this.updateSunShaderUniforms();
         this.sunSphere.display();
-        this.setActiveShader(this.defaultShader);
       this.popMatrix();
 
       this.pushMatrix();
@@ -1418,7 +1414,6 @@ makeRng(seed) {
         this.setActiveShader(this.sunShader);
         this.updateSunShaderUniforms();
         this.sunSphere.display();
-        this.setActiveShader(this.defaultShader);
       this.popMatrix();
     }
 
@@ -1476,6 +1471,24 @@ makeRng(seed) {
         this.popMatrix();
       }
     }
+    
+    if (this.displayHay && this.hayPositions) {
+      this.setActiveShader(this.arrowShader);
+      for (let i = 0; i < this.hayPositions.length; i++) {
+        const pos = this.hayPositions[i];
+        const wx = pos.normX * this.groundScale;
+        const wz = pos.normZ * this.groundScale;
+        this.pushMatrix();
+          this.multMatrix(sca);
+          this.translate(wx, pos.wy, wz);
+          this.rotate(pos.rotation, 0, 1, 0);
+          this.scale(this.hayScaleFactor, this.hayScaleFactor, this.hayScaleFactor);
+          this.arrow.display();
+        this.popMatrix();
+      }
+    }
+
+    // Default shader section
     this.setActiveShader(this.defaultShader);
     
     this.setAmbient(0.2, 0.4, 0.8, 1.0);
@@ -1483,6 +1496,23 @@ makeRng(seed) {
     this.setSpecular(0.2, 0.4, 0.8, 1.0);
     this.setEmission(0.0, 0.0, 0.0, 1.0);
     this.setShininess(10.0);
+
+    // separated from the arrow in order to be included in the default shader section
+    if (this.displayHay && this.hayPositions) {
+      // wy is pre-baked at generation time (5-corner terrain max), no per-frame sampling needed.
+      for (let i = 0; i < this.hayPositions.length; i++) {
+        const pos = this.hayPositions[i];
+        const wx = pos.normX * this.groundScale;
+        const wz = pos.normZ * this.groundScale;
+        this.pushMatrix();
+          this.multMatrix(sca);
+          this.translate(wx, pos.wy, wz);
+          this.rotate(pos.rotation, 0, 1, 0);
+          this.scale(this.hayScaleFactor, this.hayScaleFactor, this.hayScaleFactor);
+          this.hay.display();
+        this.popMatrix();
+      }
+    }
 
     if (this.displayTree && this.treePositions) {
       for (let i = 0; i < this.treePositions.length; i++) {
@@ -1575,37 +1605,6 @@ makeRng(seed) {
           pos.obj.display();
         this.popMatrix();
       }
-    }
-
-    if (this.displayHay && this.hayPositions) {
-      // wy is pre-baked at generation time (5-corner terrain max), no per-frame sampling needed.
-      for (let i = 0; i < this.hayPositions.length; i++) {
-        const pos = this.hayPositions[i];
-        const wx = pos.normX * this.groundScale;
-        const wz = pos.normZ * this.groundScale;
-        this.pushMatrix();
-          this.multMatrix(sca);
-          this.translate(wx, pos.wy, wz);
-          this.rotate(pos.rotation, 0, 1, 0);
-          this.scale(this.hayScaleFactor, this.hayScaleFactor, this.hayScaleFactor);
-          this.hay.display();
-        this.popMatrix();
-      }
-
-      this.setActiveShader(this.arrowShader);
-      for (let i = 0; i < this.hayPositions.length; i++) {
-        const pos = this.hayPositions[i];
-        const wx = pos.normX * this.groundScale;
-        const wz = pos.normZ * this.groundScale;
-        this.pushMatrix();
-          this.multMatrix(sca);
-          this.translate(wx, pos.wy, wz);
-          this.rotate(pos.rotation, 0, 1, 0);
-          this.scale(this.hayScaleFactor, this.hayScaleFactor, this.hayScaleFactor);
-          this.arrow.display();
-        this.popMatrix();
-      }
-      this.setActiveShader(this.defaultShader);
     }
 
     if (this.displayWagon) {
