@@ -31,8 +31,22 @@ export class MyScene extends CGFscene {
     this.grassBlades = []; // list of grass blades
     this.numGrass = 200;
 
-    this.sunPosition = { x: 12, y: 8, z: -6 };
-    this.sunScale = 0.3;
+    this.globalScaleFactor = 1;
+    this.skyScaleFactor    = 50;
+    this.treeScaleFactor   = 0.5;
+    this.flowerScaleFactor = 0.5;
+
+    this.sunPosition = { x: this.skyScaleFactor, y: 0, z: 0 };
+    this.sunRotation = 0;
+    this.sunScale = 3;
+    this.sunSpeed = 0.3;
+
+    this.cloudSpeed        = 0.05;
+    this.cloudDensity      = 0.62;
+    this.cloudSize        = 6.0; // as in how small the clouds are, the half-sphere radius is defined with skyScaleFactor
+    this._cloudTime        = 0.0;
+    this._accumulatedTime  = 0;
+    this.setUpdatePeriod(16);
 
     this.initCameras();
     this.initTrees();
@@ -56,8 +70,8 @@ export class MyScene extends CGFscene {
     // terrainHeight() works correctly for every generator call below.
     this._initTerrainHeightmap();
 
-    this.numPatches = 80; // number of patches center
-    this.bladesPerPatch = 40; // density of each grass patch
+    this.numPatches = 200; // number of patches center
+    this.bladesPerPatch = 60; // density of each grass patch
     this.grassScaleFactor = 1.0;
 
     // ── Barn / fence constants (defined early — needed for path generation) ──
@@ -102,6 +116,7 @@ export class MyScene extends CGFscene {
 
     //Initialize Materials and lights
     this.initSunMaterial();
+    this.initMoonMaterial();
     this.initSkyboxMaterial();
     this.initGroundMaterial();
     this.initLights();
@@ -162,18 +177,6 @@ export class MyScene extends CGFscene {
 
     this.pathWidth = 0.03;
 
-    this.globalScaleFactor = 1;
-    this.skyScaleFactor    = 50;
-    this.treeScaleFactor   = 0.5;
-    this.flowerScaleFactor = 0.5;
-
-    this.cloudSpeed        = 0.05;
-    this.cloudDensity      = 0.62;
-    this.cloudSize        = 6.0; // as in how small the clouds are, the half-sphere radius is defined with skyScaleFactor
-    this._cloudTime        = 0.0;
-    this._accumulatedTime  = 0;
-    this.setUpdatePeriod(16);
-
     this.rock = new MyRock(
       this,
       this.rockSeed,
@@ -210,8 +213,8 @@ export class MyScene extends CGFscene {
     this.wagonAngle    = spawn.angle;
     this.wagonSpeed = 0;                 // Current velocity
     this.cameraSteeringHeight = 1.5;
-    this.followDistance = 16;
-    this.followHeight = 5;
+    this.followDistance = 6;
+    this.followHeight = 8;
     this.cameraLerpSpeed = 1;
     
     this.wagonAcceleration = 0.01;
@@ -500,7 +503,13 @@ export class MyScene extends CGFscene {
       this.checkCollisions();
 
       if (this.followCamera) this.updateCamera();
+
+      this.updateSunPosition();
     }
+  }
+
+  updateSunPosition() {
+    this.sunRotation += (this._dt * this.sunSpeed) % (Math.PI * 2);
   }
 
   checkCollisions() {
@@ -1037,6 +1046,16 @@ export class MyScene extends CGFscene {
     this.sunTexture = new CGFtexture(this, "textures/sun_texture_2.jpg");
     this.sunMaterial.setTexture(this.sunTexture);
   }
+  initMoonMaterial() {
+    this.moonMaterial = new CGFappearance(this);
+    this.moonMaterial.setEmission(1, 1, 1, 1);
+    this.moonMaterial.setAmbient(1, 1, 1, 1);
+    this.moonMaterial.setDiffuse(0, 0, 0, 1);
+    this.moonMaterial.setSpecular(0, 0, 0, 1);
+
+    this.moonTexture = new CGFtexture(this, "textures/moon.png");
+    this.moonMaterial.setTexture(this.moonTexture);
+  }
 
   initGroundMaterial() {
     this.groundMaterial = new CGFappearance(this);
@@ -1072,29 +1091,75 @@ export class MyScene extends CGFscene {
       0.0, // 0 because of directional
     );
 
-    // Adding a meaningful ambient term to BOTH the scene and the light
-    // means the side of an object facing away from the sun still receives
-    // light (instead of going almost black with a purely directional sun).
-    this.lights[0].setAmbient(0.45, 0.45, 0.45, 1.0);
-    // this.lights[0].setAmbient(0.3, 0.28, 0.22, 1.0);
-    this.lights[0].setDiffuse(1.0, 0.95, 0.7, 1.0);
-    this.lights[0].setSpecular(1.0, 0.95, 0.7, 1.0);
+    // Store base values to scale them later during the day/night cycle
+    this.baseAmbient = [0.45, 0.45, 0.45, 1.0];
+    this.baseDiffuse = [1.0, 0.95, 0.7, 1.0];
+    this.baseSpecular = [1.0, 0.95, 0.7, 1.0];
+
+    this.lights[0].setAmbient(...this.baseAmbient);
+    this.lights[0].setDiffuse(...this.baseDiffuse);
+    this.lights[0].setSpecular(...this.baseSpecular);
+    
     this.lights[0].enable();
     this.lights[0].update();
 
-    // Global scene ambient — affects every material that uses the default
-    // CGF shader (i.e. anything that isn't drawing with a custom shader).
     this.setGlobalAmbientLight(0.55, 0.55, 0.55, 1.0);
   }
 
   syncSunLight() {
-    // sync light[0] with current sunPosition
+    const angle = ((this.sunRotation % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
+
+    // Calculate the physical rotation
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+
+    const rotatedX = this.sunPosition.x * cosA - this.sunPosition.y * sinA;
+    const rotatedY = this.sunPosition.x * sinA + this.sunPosition.y * cosA;
+    const rotatedZ = this.sunPosition.z; 
+
     this.lights[0].setPosition(
-      this.sunPosition.x,
-      this.sunPosition.y,
-      this.sunPosition.z,
+      rotatedX,
+      rotatedY,
+      rotatedZ,
       0.0,
     );
+
+    // Nighttime check
+    if (angle > Math.PI) {
+      this.lights[0].disable();
+      this.lights[0].update();
+      return;
+    }
+
+    // --- DAYTIME TRANSITION LOGIC ---
+    const fadeSpeed = 5.0; 
+    const intensity = Math.max(0, Math.min(1.0, sinA * fadeSpeed));
+
+    if (intensity <= 0.0) {
+        this.lights[0].disable();
+    } else {
+        this.lights[0].enable();
+
+        this.lights[0].setAmbient(
+            this.baseAmbient[0] * intensity,
+            this.baseAmbient[1] * intensity,
+            this.baseAmbient[2] * intensity,
+            1.0
+        );
+        this.lights[0].setDiffuse(
+            this.baseDiffuse[0] * intensity,
+            this.baseDiffuse[1] * intensity,
+            this.baseDiffuse[2] * intensity,
+            1.0
+        );
+        this.lights[0].setSpecular(
+            this.baseSpecular[0] * intensity,
+            this.baseSpecular[1] * intensity,
+            this.baseSpecular[2] * intensity,
+            1.0
+        );
+    }
+
     this.lights[0].update();
   }
 
@@ -1328,10 +1393,29 @@ makeRng(seed) {
     if (this.displaySun && this.sunPosition) {
       this.pushMatrix();
         this.multMatrix(sca);
+        this.rotate(this.sunRotation, 0, 0, 1); // Orbital rotation
         this.translate(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z);
         this.scale(this.sunScale, this.sunScale, this.sunScale);
+        this.rotate(this.sunRotation, 0, 1, 0); // Local spin
+        
         this.sunMaterial.apply();
-        this.setActiveShader(this.sunShader); // use sun glow shader
+        this.setActiveShader(this.sunShader); 
+        this.updateSunShaderUniforms();
+        this.sunSphere.display();
+        this.setActiveShader(this.defaultShader);
+      this.popMatrix();
+
+      this.pushMatrix();
+        this.multMatrix(sca);
+        this.rotate(this.sunRotation + Math.PI, 0, 0, 1); 
+        
+        this.translate(this.sunPosition.x, this.sunPosition.y, this.sunPosition.z);
+        this.scale(this.sunScale, this.sunScale, this.sunScale);
+        
+        this.rotate(this.sunRotation, 0, 1, 0); 
+        
+        this.moonMaterial.apply();
+        this.setActiveShader(this.sunShader);
         this.updateSunShaderUniforms();
         this.sunSphere.display();
         this.setActiveShader(this.defaultShader);

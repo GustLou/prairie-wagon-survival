@@ -51,6 +51,7 @@ export class MyInterface extends CGFinterface {
     skyFolder.add(this.scene, 'skyScaleFactor', 0.1, 200).name('Scale Factor');
     skyFolder.add(this.scene, 'displaySun').name('Display Sun');
     skyFolder.add(this.scene, 'sunScale', 0.1, 20).name('Sun Size');
+    skyFolder.add(this.scene, 'sunSpeed', 0.0, 1.0).name('Sun Speed');
     skyFolder.add(this.scene, 'displayClouds').name('Display Clouds');
     skyFolder.add(this.scene, 'cloudSpeed', 0.0, 0.5).name('Cloud Speed');
     skyFolder.add(this.scene, 'cloudDensity', 0.0, 0.9).name('Cloud Density');
@@ -93,9 +94,9 @@ export class MyInterface extends CGFinterface {
     // Grass controls
     const grassFolder = settings.addFolder('Grass');
     grassFolder.add(this.scene, 'displayGrass').name('Display');
-    grassFolder.add(this.scene, 'numPatches', 0, 80, 1).name('Patch Count')
+    grassFolder.add(this.scene, 'numPatches', 0, 200, 1).name('Patch Count')
                .onFinishChange(() => this.scene.rebuildGrass());
-    grassFolder.add(this.scene, 'bladesPerPatch', 1, 40, 1).name('Blades per Patch')
+    grassFolder.add(this.scene, 'bladesPerPatch', 1, 100, 1).name('Blades per Patch')
                .onFinishChange(() => this.scene.rebuildGrass());
     grassFolder.add(this.scene, 'grassMinDistanceToPath').name('Min Distance to Path');
     grassFolder.add(this.scene, 'grassScaleFactor').name('Scale Factor');
