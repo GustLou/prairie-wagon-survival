@@ -83,7 +83,7 @@ export class MyScene extends CGFscene {
     this.fenceEntranceArc = Math.PI / 3;
 
     this.pathNumPoints = 21;
-    this.pathSeed = 0;
+    this.pathSeed = Math.floor(Math.random() * 1000);
 
     // Restore saved path from a previous session if one exists
     const savedPath = JSON.parse(localStorage.getItem('cgra_path') || 'null');
@@ -264,14 +264,17 @@ export class MyScene extends CGFscene {
 
     // ── Health / timer system ──────────────────────────────────────────────
     // maxHealth is the total health budget in seconds (silo full = 2 min).
-    this.maxHealth      = 150;          // 2 minutes
+    this.maxHealth      = 150;
     this.health         = this.maxHealth;
+    this.instantDamage  = 0;
+    this.instantGain    = 0;
+    this.rockCollision  = false;
+    this.treeCollision  = false;
     this.hasStartedMoving = false;      // latches true on first wagon movement
     this.gameElapsed    = 0;            // seconds since first move (counts UP)
     this._dt            = 0;           // frame delta in seconds (shared with checkKeys)
 
     // Read-only strings shown live in the GUI
-    this.healthDisplay  = this._formatTime(this.maxHealth);
     this.elapsedDisplay = '0:00';
 
     // ── Game state & overlay DOM refs ──────────────────────────────────────
@@ -282,6 +285,7 @@ export class MyScene extends CGFscene {
     this._gameoverTimeEl   = document.getElementById('gameover-time');
 
     this.wagonHayCount = 0;
+    this.balesDropped  = 0;
 
     // Pre-allocated scratch arrays — reused every frame to avoid GC pressure.
     this._bladeWorldPos = [0, 0]; // grass wind shader uBladeWorldPos
@@ -488,7 +492,6 @@ export class MyScene extends CGFscene {
           this.triggerGameOver();
         }
       }
-      this.healthDisplay  = this._formatTime(this.health);
       this.elapsedDisplay = this._formatTime(this.gameElapsed);
 
       // ── Hay respawn: when ≤ 1 bale remains and the wagon is empty, clear
@@ -524,7 +527,6 @@ export class MyScene extends CGFscene {
     // «Wagon gets damage by hitting obstacles (example: loses a random HP number between 5 and 15)»
 
     if (this.rockPositions) {
-      // Rock is a unit sphere (radius=1 in model space); world radius = pos.scale * rockScaleFactor
       for (const pos of this.rockPositions) {
         const rx = pos.normX * this.groundScale;
         const rz = pos.normZ * this.groundScale;
@@ -532,8 +534,15 @@ export class MyScene extends CGFscene {
         const combinedRadius = wagonRadius + rockRadius;
         const dx = wagonCX - rx;
         const dz = wagonCZ - rz;
+
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
-          this.removeHealth(this._dt*30);
+          if (!pos.hasCollided) {
+            pos.hasCollided = true;
+            this.removeHealth(Math.random() * 10 + 5);
+          }
+          break;
+        } else {
+          pos.hasCollided = false;
         }
       }
     }
@@ -566,10 +575,19 @@ export class MyScene extends CGFscene {
         const combinedRadius = wagonRadius + treeRadius;
         const dx = wagonCX - tx;
         const dz = wagonCZ - tz;
+
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
-          this.removeHealth(this._dt*30);
+          if (!pos.hasCollided) {
+            pos.hasCollided = true;
+            this.removeHealth(Math.random() * 10 + 5);
+          }
+          break;
+        } else {
+          pos.hasCollided = false;
         }
       }
+    } else if (this.treeCollision) {
+      this.treeCollision = false;
     }
 
     const currentOnPath = this.isOnPath(wagonCX, wagonCZ);
@@ -580,15 +598,7 @@ export class MyScene extends CGFscene {
     // Barn drop zone: wagon center inside the fence circle
     const fdx = wagonCX - this.barnX;
     const fdz = wagonCZ - this.barnZ;
-    // const wasInFence = this.fenceIntersected;
     this.fenceIntersected = (fdx * fdx + fdz * fdz) < (this.fenceRadius * this.fenceRadius);
-    // if (this.fenceIntersected && !wasInFence) {
-    //   console.log("Entered barn area");
-    //   this.dropHay();
-    // } else if (!this.fenceIntersected && wasInFence) {
-    //   console.log("Left barn area");
-    //   this.generateHay();
-    // }
 
     // calculate the angle of the wagon relative to the fence center
     const fenceAngle = Math.atan2(fdz, fdx);
@@ -798,6 +808,11 @@ export class MyScene extends CGFscene {
   addHealth(amount = 10) {
     this.health = Math.min(this.maxHealth, this.health + amount);
     this._syncSiloToHealth();
+    this.instantGain += amount;
+
+    setTimeout(() => {
+      this.instantGain -= amount;
+    }, 500);
   }
 
   /**
@@ -807,6 +822,11 @@ export class MyScene extends CGFscene {
   removeHealth(amount = 10) {
     this.health = Math.max(0, this.health - amount);
     this._syncSiloToHealth();
+    this.instantDamage += amount;
+
+    setTimeout(() => {
+      this.instantDamage -= amount;
+    }, 500);
   }
 
   pickUpHay(index) {
@@ -824,6 +844,7 @@ export class MyScene extends CGFscene {
     // Non-linear reward: 1 bale = +18 s, 2 bales = +32 s
     const gain = this.wagonHayCount === 1 ? 18 : 32;
     this.addHealth(gain);
+    this.balesDropped += this.wagonHayCount;
     this.wagonHayCount = 0;
     this.wagon.updateHayCount(0);
     // Respawn check is handled in the update loop — new bales appear only
@@ -871,7 +892,6 @@ export class MyScene extends CGFscene {
     this.health           = this.maxHealth;
     this.gameElapsed      = 0;
     this.hasStartedMoving = false;
-    this.healthDisplay    = this._formatTime(this.maxHealth);
     this.elapsedDisplay   = '0:00';
     this._syncSiloToHealth();
 
@@ -1685,6 +1705,7 @@ makeRng(seed) {
           randomOffset: 0,
           scale: 0.6 + Math.random() * 0.8,
           rotation: Math.random() * Math.PI * 2,
+          hasCollided: false,
         });
       } else if (failedAttempts < numTrees) {
         failedAttempts++;
@@ -1753,7 +1774,8 @@ makeRng(seed) {
           scale: 0.5 + Math.random() * 1.0,
           rotX: Math.random() * Math.PI * 2,
           rotY: Math.random() * Math.PI * 2,
-          rotZ: Math.random() * Math.PI * 2
+          rotZ: Math.random() * Math.PI * 2,
+          hasCollided: false,
         });
       } else if (failedAttempts < this.numRocks * 2) {
         // If we hit the path, try again
