@@ -152,6 +152,12 @@ Shader animations (clouds, sky, arrow, grass and wagon)
 ![Barn](screenshots/project-t03g01-5.png)
 Barn
 
+### Video
+
+<video controls>
+  <source src="screenshots/project-t03g01.mp4" type="video/mp4">
+</video>
+
 ---
 
 ## Advanced Features Summary
