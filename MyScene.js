@@ -217,10 +217,10 @@ export class MyScene extends CGFscene {
     this.followHeight = 8;
     this.cameraLerpSpeed = 1;
     
-    this.wagonAcceleration = 0.01;
+    this.wagonAcceleration = 10 / 9;
     this.wagonSlowFriction = 0.92;
     this.wagonFriction = 0.96;
-    this.wagonTurnRate = 0.4;
+    this.wagonTurnRate = 0.04;
     this.wagonOnPath = true;
 
     // 180-Degree Turn Animation State
@@ -451,8 +451,8 @@ export class MyScene extends CGFscene {
             this.wagonAngle = this.targetTurnAngle % (Math.PI * 2);
           } else {
             // section to let the wagon move forward a bit
-            this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
-            this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
+            this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * this._dt;
+            this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * this._dt;
           }
         } else {
           // Apply Smoothstep easing for a natural turn
@@ -470,8 +470,8 @@ export class MyScene extends CGFscene {
 
         // Calculate new position based on speed and heading
         // (Using sin for X and cos for Z gives standard tank/car controls)
-        this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
-        this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * this._dt * 10;
+        this.wagonPosition.x += Math.sin(this.wagonAngle) * this.wagonSpeed * this._dt;
+        this.wagonPosition.z += Math.cos(this.wagonAngle) * this.wagonSpeed * this._dt;
 
         this.wagon.updateWheelAngle(this.wagonSpeed);
       }
@@ -627,7 +627,7 @@ export class MyScene extends CGFscene {
     if (this.isWagonTurning) return; 
 
     this.isWagonTurning = true;
-    this.wagonSpeed *= 2.5; // make the wagon faster so it gets out of forbidden zone and let friction reduce the velocity afterwards
+    this.wagonSpeed *= 1.5; // make the wagon faster so it gets out of forbidden zone and let friction reduce the velocity afterwards
     this.turnAnimTimer = 0;
     this.startTurnAngle = this.wagonAngle;
     this.targetTurnAngle = this.wagonAngle + Math.PI; 
@@ -670,11 +670,11 @@ export class MyScene extends CGFscene {
   checkKeys() {
     // Accelerate forward
     if (this.gui.isKeyPressed("KeyW")) {
-      this.wagonSpeed += this.wagonAcceleration;
+      this.wagonSpeed += this.wagonAcceleration * this._dt;
     }
     // Decelerate / Reverse
     if (this.gui.isKeyPressed("KeyS")) {
-      this.wagonSpeed -= this.wagonAcceleration;
+      this.wagonSpeed -= this.wagonAcceleration * this._dt;
       if (this.wagonSpeed < 0) {
         this.wagonSpeed = 0;
       }
