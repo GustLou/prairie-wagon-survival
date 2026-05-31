@@ -268,8 +268,6 @@ export class MyScene extends CGFscene {
     this.health         = this.maxHealth;
     this.instantDamage  = 0;
     this.instantGain    = 0;
-    this.rockCollision  = false;
-    this.treeCollision  = false;
     this.hasStartedMoving = false;      // latches true on first wagon movement
     this.gameElapsed    = 0;            // seconds since first move (counts UP)
     this._dt            = 0;           // frame delta in seconds (shared with checkKeys)
@@ -557,12 +555,21 @@ export class MyScene extends CGFscene {
         const hx = pos.normX * this.groundScale;
         const hz = pos.normZ * this.groundScale;
         const combinedRadius = wagonRadius + hayRadius;
+        const combinedRadiusVision = wagonRadius + this.groundScale / 4; // let the player see 1/4 of the map
         const dx = wagonCX - hx;
         const dz = wagonCZ - hz;
       
         if (dx * dx + dz * dz < combinedRadius * combinedRadius) {
           this.hayCollisionIndex = i;
-          break;
+        }
+        if (dx * dx + dz * dz < combinedRadiusVision * combinedRadiusVision) {
+          if (!pos.isSeen) {
+            pos.isSeen = true;
+          }
+        } else {
+          if (pos.isSeen) {
+            pos.isSeen = false;
+          }
         }
       }
     }
@@ -586,8 +593,6 @@ export class MyScene extends CGFscene {
           pos.hasCollided = false;
         }
       }
-    } else if (this.treeCollision) {
-      this.treeCollision = false;
     }
 
     const currentOnPath = this.isOnPath(wagonCX, wagonCZ);
@@ -1521,6 +1526,7 @@ makeRng(seed) {
       // wy is pre-baked at generation time (5-corner terrain max), no per-frame sampling needed.
       for (let i = 0; i < this.hayPositions.length; i++) {
         const pos = this.hayPositions[i];
+        if (!pos.isSeen) continue; 
         const wx = pos.normX * this.groundScale;
         const wz = pos.normZ * this.groundScale;
         this.pushMatrix();
@@ -1843,6 +1849,7 @@ makeRng(seed) {
         normZ:    v - 0.5,
         wy,
         rotation: Math.random() * Math.PI * 2,
+        isSeen:   true,
       });
     }
   }
