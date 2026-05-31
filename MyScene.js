@@ -1414,6 +1414,17 @@ makeRng(seed) {
       this.multMatrix(sca);
       this.scale(this.skyScaleFactor, this.skyScaleFactor, this.skyScaleFactor);
 
+      if (this.displaySky) {
+        this.gl.enable(this.gl.CULL_FACE);
+        this.gl.cullFace(this.gl.BACK);
+        this.skyboxMaterial.apply();
+
+        this.setActiveShader(this.skyShader);
+
+        this.sphere.display();
+        this.gl.disable(this.gl.CULL_FACE);
+      }
+
       if (this.displayClouds) {
         this.gl.enable(this.gl.BLEND);
         this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
@@ -1432,16 +1443,6 @@ makeRng(seed) {
 
         this.gl.depthMask(true);
         this.gl.disable(this.gl.BLEND);
-      }
-      
-      this.gl.enable(this.gl.CULL_FACE);
-      this.gl.cullFace(this.gl.BACK);
-      if (this.displaySky) {
-        this.skyboxMaterial.apply();
-
-        this.setActiveShader(this.skyShader);
-
-        this.sphere.display();
       }
     this.popMatrix();
 
@@ -1474,8 +1475,6 @@ makeRng(seed) {
         this.sunSphere.display();
       this.popMatrix();
     }
-    
-    this.gl.disable(this.gl.CULL_FACE);
 
     if (this.displayRock && this.rockPositions) {
       // Set the uniform once for all rocks
