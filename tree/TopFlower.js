@@ -118,14 +118,19 @@ export class TopFlower extends CGFobject {
         // Create the standard CGFobjects as children
         this.petalsObj = new FlowerPetals(scene, petals, petalLen, petalWidth, this.petalElevation);
         this.discObj   = new FlowerDisc(scene, centreR, this.centreHeight);
+
+		this.r = 0.4 + Math.random() * 0.6;
+		this.g = 0.4 + Math.random() * 0.6;
+		this.b = 0.4 + Math.random() * 0.6;
     }
 
     setDefaultAppearance() {
-        this.scene.setAmbient(0.9, 0.3, 0.5, 1.0);
-        this.scene.setDiffuse(0.9, 0.3, 0.5, 1.0);
-        this.scene.setSpecular(0.4, 0.1, 0.2, 1.0);
-        this.scene.setShininess(20.0);
-    }
+		this.scene.setAmbient(this.r, this.g, this.b, 1.0);
+		this.scene.setDiffuse(this.r, this.g, this.b, 1.0);
+	    this.scene.setSpecular(0.1, 0.2, 0.1, 1.0); 
+        // this.scene.setSpecular(0.4, 0.1, 0.2, 1.0);
+        this.scene.setShininess(1.0);
+	}
 
     setCentreAppearance() {
         this.scene.setAmbient(0.95, 0.85, 0.1, 1.0);
