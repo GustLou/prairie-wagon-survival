@@ -82,7 +82,7 @@ export class MyWagon extends CGFobject {
     this.horse = new CGFobjModel(this.scene, 'obj-models/horse3.obj');
   }
 
-  display(horseAngle) {
+  display(horseAngleV, horseAngleH) {
     if (this.woodTexture) this.woodMaterial.apply();
 
     // front wall
@@ -160,7 +160,7 @@ export class MyWagon extends CGFobject {
 
 
     // tongue
-    this.scene.rotate(horseAngle, 1, 0, 0);
+    this.scene.rotate(horseAngleV, 1, 0, 0);
     this.tongue.display();
 
     // horses
@@ -168,16 +168,18 @@ export class MyWagon extends CGFobject {
     this.scene.scale(0.4, 0.4, 0.4)
     this.scene.translate(-this.tongueLength - 5,0,0);
 
+    this.scene.rotate(horseAngleH, 0, 1, 0);
     this.scene.translate(0, 0, this.baseWidth);
     this.horse.display();
     this.scene.translate(0, 0, -this.baseWidth*2);
     this.horse.display();
     this.scene.translate(0, 0, this.baseWidth);
+    this.scene.rotate(-horseAngleH, 0, 1, 0);
     
     this.scene.translate(this.tongueLength + 5,0,0);
     this.scene.scale(2.5, 2.5, 2.5);
     this.scene.rotate(-Math.PI / 2, 0, 1, 0);
-    this.scene.rotate(-horseAngle, 1, 0, 0);
+    this.scene.rotate(-horseAngleV, 1, 0, 0);
 
     // cloth
     if (this.clothTexture) this.clothMaterial.apply();

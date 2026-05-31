@@ -230,6 +230,10 @@ export class MyScene extends CGFscene {
     this.startTurnAngle = 0;
     this.targetTurnAngle = 0;
 
+    this.horseAngleOffset = 0; 
+    this.maxHorseAngle = Math.PI / 4;
+    this.horseSmoothness = 0.15;
+
     this.hayPositions = [];
     this.hayCollisionIndex = -1;
 
@@ -681,14 +685,16 @@ export class MyScene extends CGFscene {
     }
 
     // Steer (Curve trajectory)
-    // By multiplying by this.wagonSpeed, the wagon CANNOT rotate in place. 
-    // It also naturally reverses the steering direction if you are backing up!
+    let targetHorseAngle = 0;
     if (this.gui.isKeyPressed("KeyA")) {
       this.wagonAngle += this.wagonTurnRate * this.wagonSpeed;
+      targetHorseAngle = this.maxHorseAngle;
     }
     if (this.gui.isKeyPressed("KeyD")) {
       this.wagonAngle -= this.wagonTurnRate * this.wagonSpeed;
-    }
+      targetHorseAngle = -this.maxHorseAngle;
+    }       
+    this.horseAngleOffset += (targetHorseAngle - this.horseAngleOffset) * this.horseSmoothness;
 
     if (this.gui.isKeyPressed("KeyL") && this.fenceIntersected) {
       this.dropHay();
@@ -1683,7 +1689,7 @@ makeRng(seed) {
         
         this.scale(this.wagonScaleFactor, this.wagonScaleFactor, this.wagonScaleFactor);
         
-        this.wagon.display(horsePitch);
+        this.wagon.display(horsePitch, this.horseAngleOffset);
       this.popMatrix();
     }
   }
