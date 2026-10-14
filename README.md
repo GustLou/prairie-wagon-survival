@@ -2,8 +2,7 @@
 
 A WebGL survival game built on WebCGF: drive a covered prairie wagon across procedurally generated terrain, collect hay bales, and avoid rocks and trees. Built for the Computer Graphics course (L.EIC, FEUP, 2025/26) in a group of three.
 
-[Demo video](https://youtu.be/Blmsztga7Yk)
-[Play Online](https://gustlou.github.io/prairie-wagon-survival/)
+[Demo video](https://youtu.be/Blmsztga7Yk) · [Play online](https://gustlou.github.io/prairie-wagon-survival/)
 
 ![Overall scene overview](screenshots/project-t03g01-1.png)
 
